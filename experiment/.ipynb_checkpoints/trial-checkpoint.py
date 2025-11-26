@@ -1,8 +1,7 @@
 import numpy as np
 from typing import Dict, Any, List
 from sleap_io import Labels
-from depth_keys.prediction.predict import run_inference_in_splits
-# from depth_keys.post_processing.post_process import process_session
+from prediction.predict import run_inference_in_splits
 import os
 
 import sys
@@ -32,12 +31,11 @@ class Trial:
         trial_id: str, # associated with session
         video_paths: List[str],  # Changed from List[Video] to List[str]
         sleap_data: Dict[str, Labels] = None, 
-        n_body_parts: int = 14,
+        n_body_parts: int = None,
         metadata: Dict[str, Any] = None,
         keypoints: np.ndarray = None,
         video_extension: str = ".avi",
-        inference_output_path: str = None,
-        keypoints_output_path : str = None
+        inference_output_path: str = None
     ):
         # Essential identifying information
         self.trial_id: str = trial_id
@@ -56,11 +54,6 @@ class Trial:
         # Shape: (n_frames, n_body_parts, 3) where the 3 dimensions are (x, y, confidence/z)
         self.keypoints: np.ndarray = keypoints if keypoints is not None else np.empty((0, self.n_body_parts, 3))
 
-        self.sleap_data = sleap_data
-        self.video_extension = video_extension
-        self.inference_output_path = inference_output_path
-        self.keypoints_output_path = keypoints_output_path
-
     def get_keypoint_shape(self) -> str:
         """Helper to check the shape of the keypoint data."""
         return str(self.keypoints.shape)
@@ -69,52 +62,23 @@ class Trial:
         """Returns the number of frames based on the keypoints array."""
         return self.keypoints.shape[0]
     
-    def predict_keypoints(self, version_num=0, n_splits=4, 
-                          ci_model_path=None, centroid_model_path=None):
-        """Runs inference on videos in video_paths"""        
+    def predict_keypoints(self, output_path, n_splits=4):
+        """Runs inference on videos in video_paths"""
 
         if self.inference_output_path is None:
-            self.inference_output_path = f"./_keypoints_v{version_num}_2d"
+            self.inference_output_path = "../_keypoints_2d"
 
-        os.makedirs(self.inference_output_path, exist_ok=True)
+        os.makedirs(self.inference_output_path, exists_ok=True)
 
         for video_path in self.video_paths:
-            
-            save_name = os.path.basename(video_path).rstrip(self.video_extension)
-
-            # predict
+    
+            # predict 
             success = run_inference_in_splits(video_path=video_path, 
                                               n_splits=n_splits, 
-                                              output_path=os.path.join(self.inference_output_path, save_name),
-                                              ci_model_path=ci_model_path,
-                                              centroid_model_path=centroid_model_path)
+                                              output_path=output_path)
 
             if not success:
                 print(f"Unable to process {os.path.basename(video_path)}")
-
-    # def compute_3d_keypoints(self, use_data_dir, version_num, intrinsics_file, cable, node_names, save_dir):
-
-    #     if self.keypoints_output_path is None:
-    #         self.keypoints_output_path = f"./_keypoints_v{version_num}_3d"
-
-    #     avis = self.video_paths
-    #     kpoint_root_dir = self.inference_output_path
-        
-        
-    #     process_session(use_data_dir, 
-    #                     avis, 
-    #                     kpoint_root_dir, 
-    #                     intrinsics_file, 
-    #                     version_num, 
-    #                     node_names, 
-    #                     cable, 
-    #                     save_dir)
-
-        
-        
-        
-
-
 
 
 
