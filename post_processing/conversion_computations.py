@@ -66,8 +66,11 @@ def get_3d_kpoints(
     save_dir="_kpoints_v0_3d",
     patch_radius=3,
     agg_func=np.nanmax,
+    intrinsics_matrix=None,
+    distortion_coeffs=None,
     z_valid_range = (1,200),
-    reader_kwargs={"threads": 2},
+    reader_kwargs={"threads": 2, 
+                   "prepend_args" : "source ~/conda_activate ; conda activate ffmpeg"},
     bilateral_kwargs={"d":5, "sigmaColor": 15, "sigmaSpace":3},
     replace_height_spikes_kwargs=None,
     force=False,
@@ -206,12 +209,12 @@ def convert_2d_to_3d(intrinsics_file, kpoint_root_dir, avis, version_num, cable,
             if len(_frame.instances) == 0 : 
                 continue
 
-            points = _frame.instances[0]._points # _points returns all points, points only returns labeled points
+            points = _frame.instances[0].points # _points returns all points, points only returns labeled points
             for j in range(points.shape[0]):
                 _point = points[j]
-                new_arr[i][j][0] = _point.x
-                new_arr[i][j][1] = _point.y
-                new_arr[i][j][2] = _point.score
+                new_arr[i][j][0] = _point['xy'][0]  
+                new_arr[i][j][1] = _point['xy'][1]
+                new_arr[i][j][2] = _point['score']
      
         # save a toml with relevant stuff...
         metadata = {}

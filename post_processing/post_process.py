@@ -2,7 +2,7 @@ import sys
 sys.path.append("/storage/home/hcoda1/3/triesenmy3/r-jmarkowitz30-0/markovids/src")
 
 from markovids import vid, pcl
-from conversion_computations import *
+from depth_keys.post_processing.conversion_computations import *
 import sys
 import numpy as np
 import toml
