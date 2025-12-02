@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "depth_keys"  # Change this to your actual package name
+version = "0.1.0"
+description = "Depth rig experiment processing pipeline"
+requires-python = ">=3.12"      # Matches your python=3.12 requirement
+
+# The Core Dependencies
+dependencies = [
+    "scikit-learn",
+    "numba",
+    "scikit-image",
+    "toml",
+    
+    # Specific versions you requested
+    "sleap-io==0.5.7",
+    "sleap-nn==0.0.4",
+
+    # Your git dependency
+    # Note: Ensure this URL points to YOUR new repo, not the advisor's
+    "markovids @ git+https://github.com/triesenmy3/markovids.git"
+]
+
+# Optional: Tools for development (install via `pip install .[dev]`)
+[project.optional-dependencies]
+dev = [
+    "ipykernel"
+]

@@ -147,7 +147,7 @@ class KeypointVideoProcessor:
     def __init__(self, session_dir: str, version_num: str, 
                  reference_camera: str = "Lucid Vision Labs-HTP003S-001-224500508",
                  intrinsics_file: str = "/storage/project/r-jmarkowitz30-0/shared/active_lab_members/markowitz_jeffrey/active_projects/mouse_open_field_lucid_rig_da_photometry/intrinsics_lucid_rig.toml",
-                 n_frames: int = None, batch_size: int = 500, raw: bool = False, overlay_save_name: str = None,
+                 n_frames: int = None, batch_size: int = 500, raw: bool = False, render_save_name: str = None,
                  frame_start: int = None, frame_end: int = None, cam_by_conf: bool = False, output_path: str = None):
         
         self.session_dir = session_dir
@@ -156,7 +156,7 @@ class KeypointVideoProcessor:
         self.output_dir = os.path.join(session_dir, "_proc", "renders") if output_path is None else output_path
         self.batch_size = batch_size
         self.raw = raw
-        self.save_name = overlay_save_name
+        self.save_name = render_save_name
         self.frame_start = frame_start
         self.frame_end = frame_end
         
