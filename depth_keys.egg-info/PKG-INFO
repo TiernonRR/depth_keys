@@ -1,0 +1,15 @@
+Metadata-Version: 2.4
+Name: depth_keys
+Version: 0.1.0
+Summary: Depth rig experiment processing pipeline
+Requires-Python: >=3.12
+Requires-Dist: scikit-learn
+Requires-Dist: numba
+Requires-Dist: scikit-image
+Requires-Dist: toml
+Requires-Dist: ffmpeg
+Requires-Dist: sleap-io==0.5.7
+Requires-Dist: sleap-nn==0.0.4
+Requires-Dist: markovids@ git+https://github.com/triesenmy3/markovids.git
+Provides-Extra: dev
+Requires-Dist: ipykernel; extra == "dev"

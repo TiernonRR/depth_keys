@@ -14,6 +14,7 @@ dependencies = [
     "numba",
     "scikit-image",
     "toml",
+    "ffmpeg",
     
     # Specific versions you requested
     "sleap-io==0.5.7",
@@ -29,3 +30,7 @@ dependencies = [
 dev = [
     "ipykernel"
 ]
+
+[tool.setuptools.packages.find]
+include = ["depth_keys*"]
+exclude = ["notebooks*", "models*", "example_scripts*"]
