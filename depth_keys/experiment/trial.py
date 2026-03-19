@@ -36,7 +36,8 @@ class Trial:
         viz_output_dir : str = None,
         reference_camera : str = None,
         intrinsics_file : str = None,
-        cable : bool = False
+        cable : bool = False,
+        transforms_path : str = None
     ):
         # Essential identifying information
         self.trial_id: str = trial_id
@@ -60,6 +61,8 @@ class Trial:
         self.intrinsics_file = intrinsics_file
         self.cable = cable
         self.node_names = node_names
+
+        self.transforms_path = transforms_path
 
     def predict_keypoints(self, ci_model_path=None, centroid_model_path=None):
         """Runs inference on videos in video_paths"""        
@@ -90,6 +93,7 @@ class Trial:
         intrinsics_file = self.intrinsics_file
         cable = self.cable
         node_names = self.node_names
+        transforms_path = self.transforms_path
         
 
         if self.keypoints_output_path is None:
@@ -105,7 +109,8 @@ class Trial:
                         version_num, 
                         node_names, 
                         cable, 
-                        save_dir)
+                        save_dir,
+                        transforms_path=transforms_path)
         
     def visualize(self, matplot_viz=True, overlay_viz=True, output_dir=None, filename="merged_keypoints.h5", 
                   max_frames_matplot=10000, matplot_save_name="matplotlib_render", skeleton_json_path="skeleton.json", **overlay_kwargs):

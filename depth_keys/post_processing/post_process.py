@@ -17,7 +17,8 @@ def process_session(
     node_names, 
     cable, 
     save_dir, 
-    bundle_adjust=False):
+    bundle_adjust=False,
+    transforms_path=None):
     
     print("Using the following avis: ")
     for avi in avis:
@@ -51,7 +52,8 @@ def process_session(
         intrinsics_matrix=intrinsics_matrix,
         distortion_coefficients=distortion_coeffs,
         alt_save_dir=save_dir,
-        bundle_adjust=bundle_adjust
+        bundle_adjust=bundle_adjust,
+        transforms_path=transforms_path
     )
     
 

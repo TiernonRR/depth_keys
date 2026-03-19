@@ -20,15 +20,64 @@ def cable_agg_func_with_cable(x):
 def cable_agg_func_no_cable(x):
     return np.nanmax(x)
 
-smoothing_params = {
-    "not_noisy": {"window_length": int(7), "poly_order": int(2)},
-    "noisy": {"window_length": int(25), "poly_order": int(2)},
-}
-
-hampel_params = {
-    "window": 100,
-    "threshold": 3,
-    "replace": False,
+# TODO make this dependent on datatype as it may be different for cable data
+optimal_args = {
+  "tail_tip": {
+    "patch_radius": 7,
+    "agg_func": 95
+  },
+  "tail_middle": {
+    "patch_radius": 8,
+    "agg_func": 75
+  },
+  "tail_base": {
+    "patch_radius": 8,
+    "agg_func": 75
+  },
+  "back_bottom": {
+    "patch_radius": 6,
+    "agg_func": 75
+  },
+  "back_middle_lower": {
+    "patch_radius": 10,
+    "agg_func": 75
+  },
+  "back_middle_upper": {
+    "patch_radius": 10,
+    "agg_func": 95
+  },
+  "back_top": {
+    "patch_radius": 8,
+    "agg_func": 90
+  },
+  "left_ear": {
+    "patch_radius": 7,
+    "agg_func": 95
+  },
+  "right_ear": {
+    "patch_radius": 5,
+    "agg_func": 90
+  },
+  "snout": {
+    "patch_radius": 10,
+    "agg_func": 75
+  },
+  "left_hip": {
+    "patch_radius": 8,
+    "agg_func": 75
+  },
+  "right_hip": {
+    "patch_radius": 10,
+    "agg_func": 75
+  },
+  "left_shoulder": {
+    "patch_radius": 8,
+    "agg_func": 75
+  },
+  "right_shoulder": {
+    "patch_radius": 10,
+    "agg_func": 75
+  }
 }
 
 def replace_height_spikes(depth_map, threshold=30, ksize=5, z_scale=4):
@@ -64,8 +113,8 @@ def get_3d_kpoints(
     batch_size=2000,
     kpoint_2d_save_dir="_kpoints_v0_2d",
     save_dir="_kpoints_v0_3d",
-    patch_radius=3,
-    agg_func=np.nanmax,
+    # patch_radius=3,
+    # agg_func=np.nanmax,
     z_valid_range = (1,200),
     reader_kwargs={"threads": 2, 
                    "prepend_args" : "source ~/conda_activate ; conda activate ffmpeg"},
@@ -85,10 +134,6 @@ def get_3d_kpoints(
     
     new_metadata_file = os.path.join(new_save_dir, f"{cam}.toml")
     
-    if os.path.exists(new_save_file) and not force:
-        print(f"{new_save_file} exists, skipping...")
-        return None
-    
     os.makedirs(new_save_dir, exist_ok=True)
 
     read_obj = vid.io.AutoReader(avi_file, **reader_kwargs)
@@ -101,8 +146,9 @@ def get_3d_kpoints(
     
     metadata = toml.load(metadata_file)
     new_metadata = copy.deepcopy(metadata)
-    new_metadata["agg_func"] = agg_func.__name__
-    new_metadata["patch_radius"] = patch_radius
+
+    new_metadata["agg_func"] = "percentile" #agg_func.__name__
+    new_metadata["patch_radius"] = None #patch_radius
     new_metadata["z_valid_range"] = z_valid_range
     
     kpoints = joblib.load(kpoint_file)
@@ -141,6 +187,11 @@ def get_3d_kpoints(
             use_frame = vid.util.fill_holes(use_frame)
 
             for j, _kpoint in enumerate(kpoint_batch[i]):
+                node_name = new_metadata["node_names"][j]
+
+                patch_radius = optimal_args[node_name]["patch_radius"]
+                percentile = optimal_args[node_name]["agg_func"]
+
                 # now we're in each body part...
                 try:
                     x = int(np.round(_kpoint[0]))
@@ -167,15 +218,14 @@ def get_3d_kpoints(
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore", category=RuntimeWarning)
                     try:
-                        kpoints_3d[working_range[i], j, 2] = agg_func(patch)
+                        kpoints_3d[working_range[i], j, 2] = np.nanpercentile(patch, percentile)
                     except ValueError as e:
                         pass
         
     read_obj.close()
     
-    if not os.path.exists(new_metadata_file):
-        with open(new_metadata_file, "w") as f:
-            toml.dump(new_metadata, f)
+    with open(new_metadata_file, "w") as f:
+        toml.dump(new_metadata, f)
     joblib.dump(kpoints_3d, new_save_file)
     
     return None
@@ -247,8 +297,8 @@ def convert_2d_to_3d(kpoint_root_dir, avis, version_num, cable, node_names):
                 bilateral_kwargs=bilateral_kwargs,
                 replace_height_spikes_kwargs=replace_height_spikes_kwargs,
                 batch_size=3000,
-                patch_radius=4,
-                agg_func=cable_agg_func, # max for data without cables, median for data with cables...
+                # patch_radius=4,
+                # agg_func=cable_agg_func, # max for data without cables, median for data with cables...
                 z_valid_range=(1,200),
                 reader_kwargs={"threads": 2},
                 save_dir = f"_kpoints_v{version_num}_3d",
