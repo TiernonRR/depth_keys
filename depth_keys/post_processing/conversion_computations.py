@@ -170,7 +170,6 @@ def get_3d_kpoints(
     for _batch in tqdm(batches):
 
         working_range = range(_batch, min(_batch + batch_size, nframes))
-        # working_range_arr = np.array(list(working_range)).astype("int")
 
         frame_batch = read_obj.get_frames(working_range).astype("float32")
         kpoint_batch = kpoints[working_range]
@@ -183,7 +182,6 @@ def get_3d_kpoints(
                 use_frame = replace_height_spikes(use_frame, **replace_height_spikes_kwargs)
             use_frame = cv2.bilateralFilter(use_frame.astype("float32"), **bilateral_kwargs)
 
-            # fill holes in depth map TODO tune params
             use_frame = vid.util.fill_holes(use_frame)
 
             for j, _kpoint in enumerate(kpoint_batch[i]):
@@ -230,7 +228,7 @@ def get_3d_kpoints(
     
     return None
 
-def convert_2d_to_3d(kpoint_root_dir, avis, version_num, cable, node_names):
+def convert_2d_to_3d(kpoint_root_dir, avis, version_num, cable, node_names): # TODO write a unit test ensuring correct mapping of values
     kpoint_save_dir = f"_kpoints_v{version_num}_2d"
 
     nbody_parts = len(node_names)
@@ -258,6 +256,10 @@ def convert_2d_to_3d(kpoint_root_dir, avis, version_num, cable, node_names):
             points = _frame.instances[0].points # _points returns all points, points only returns labeled points
             for j in range(points.shape[0]):
                 _point = points[j]
+
+                if node_names[j] != _point["name"]:
+                    continue
+
                 new_arr[i][j][0] = _point['xy'][0]  
                 new_arr[i][j][1] = _point['xy'][1]
                 new_arr[i][j][2] = _point['score']
