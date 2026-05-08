@@ -9,7 +9,7 @@ Processes frames in batches to manage memory usage.
 import argparse
 import os
 import subprocess
-from typing import Tuple
+from typing import Optional, Tuple
 
 import cv2
 import matplotlib.cm as cm
@@ -21,14 +21,10 @@ import h5py
 import toml
 import tifffile
 
-import sys
-sys.path.append("/storage/home/hcoda1/3/triesenmy3/r-jmarkowitz30-0/markovids/src")
 from markovids import depth
 from markovids.vid.io import AviReader, format_intrinsics
 
 # Global variables moved to class properties below
-
-import numpy as np
 
 def inverse_project_world_coordinates(
     xyz, z_scale=1.0, floor_distance=None, cx=319.0, cy=231.0, fx=525.0, fy=525.0
@@ -110,6 +106,9 @@ class MP4Writer:
         
         full_cmd = " ".join(command)
         if self.prepend_args:
+            # throw error in extreme case
+            if "rm" in self.prepend_args or "sudo" in self.prepend_args:
+                raise ValueError("Dangerous command detected in prepend_args")
             full_cmd = f"{self.prepend_args} ; {full_cmd}"
 
         self.pipe = subprocess.Popen(full_cmd, shell=True, stdin=subprocess.PIPE, stderr=subprocess.PIPE, executable='/bin/bash')
@@ -145,10 +144,10 @@ class KeypointVideoProcessor:
     """Processes a single camera video with 3D keypoint overlays."""
     
     def __init__(self, session_dir: str, version_num: str, 
-                 reference_camera: str = "Lucid Vision Labs-HTP003S-001-224500508",
-                 intrinsics_file: str = "/storage/project/r-jmarkowitz30-0/shared/active_lab_members/markowitz_jeffrey/active_projects/mouse_open_field_lucid_rig_da_photometry/intrinsics_lucid_rig.toml",
+                 reference_camera: str, intrinsics_file: str,
                  n_frames: int = None, batch_size: int = 500, raw: bool = False, render_save_name: str = None,
-                 frame_start: int = None, frame_end: int = None, cam_by_conf: bool = False, output_path: str = None):
+                 frame_start: int = None, frame_end: int = None, cam_by_conf: bool = False, output_path: str = None,
+                 conda_env_name: Optional[str] = None, keypoint_file: Optional[str] = None):
         
         self.session_dir = session_dir
         self.video_dir = os.path.join(session_dir, "_proc")
@@ -159,10 +158,18 @@ class KeypointVideoProcessor:
         self.save_name = render_save_name
         self.frame_start = frame_start
         self.frame_end = frame_end
+        self.conda_env_name = conda_env_name
+        self.keypoint_file = os.path.abspath(keypoint_file) if keypoint_file else None
         
         # Set camera and intrinsics as instance properties
         self.reference_camera = reference_camera
         self.intrinsics_file = intrinsics_file
+
+        if self.conda_env_name is None:
+            raise ValueError("conda_env_name is required for ffmpeg subprocess execution.")
+
+        if self.keypoint_file is not None and not os.path.exists(self.keypoint_file):
+            raise FileNotFoundError(f"Keypoint override file not found: {self.keypoint_file}")
 
         # Load in metadata
         metadata = toml.load(os.path.join(session_dir, "_proc", f"_kpoints_v{version_num}_3d", "merged_keypoints.toml"))
@@ -171,7 +178,7 @@ class KeypointVideoProcessor:
         self.keypoint_radius = 3
         self.colormap = cm.jet
         self.fps = 100
-        self.prepend_args = "source ~/conda_activate ; conda activate ffmpeg"
+        self.prepend_args = f"source ~/conda_activate ; conda activate {self.conda_env_name}"
         self.cam_by_conf = cam_by_conf
         self.cameras = metadata['cameras']
         self.conf = None
@@ -184,7 +191,17 @@ class KeypointVideoProcessor:
     
     def load_keypoints(self):
         """Load 3D keypoint data for the camera."""
-        keypoint_file = os.path.join(self.session_dir, "_proc", f"_kpoints_v{self.version_num}_3d", "merged_keypoints.h5")
+        keypoint_file = self.keypoint_file
+        if keypoint_file is None:
+            keypoint_file = os.path.join(
+                self.session_dir,
+                "_proc",
+                f"_kpoints_v{self.version_num}_3d",
+                "merged_keypoints.h5",
+            )
+
+        if not os.path.exists(keypoint_file):
+            raise FileNotFoundError(f"Keypoint file not found: {keypoint_file}")
         
         print(f"Loading keypoints from: {keypoint_file}")
         
@@ -209,21 +226,6 @@ class KeypointVideoProcessor:
         cy = intrinsics_matrix[self.reference_camera][1, 2]
         fx = intrinsics_matrix[self.reference_camera][0, 0]
         fy = intrinsics_matrix[self.reference_camera][1, 1]
-
-        # Get floor distance from background depth image using self.reference_camera
-        bground_file = os.path.join(self.session_dir, "_bground", f"{self.reference_camera}.tiff")
-        bground = tifffile.imread(bground_file)
-
-        bground_roi = depth.plane.get_floor(bground.astype("float"), dilations=0)
-
-        kernel = cv2.getStructuringElement(
-            cv2.MORPH_ELLIPSE, (60, 60)
-        )  # erode walls, etc.
-        # use_bground_roi = cv2.erode(
-        #     bground_roi, kernel
-        # ) 
-
-        # floor_distance = np.median(bground[use_bground_roi]) / 4.0
 
         # Convert world coordinates to camera image coordinates
         keypoints = inverse_project_world_coordinates(
@@ -250,15 +252,12 @@ class KeypointVideoProcessor:
             print(f"Warning: Video file not found: {video_path}")
             return None
     
-    def determine_video_length(self, video_path, keypoints):
+    def determine_video_length(self, video_reader, keypoints):
         """Determine the minimum video length between video and keypoints."""
-        if video_path is None:
+        if video_reader is None:
             return 0
-            
-        # Check video file length
-        avi_reader = AviReader(video_path, prepend_args=self.prepend_args)
-        avi_reader.get_file_info()
-        video_length = avi_reader.nframes
+
+        video_length = video_reader.nframes
         print(f"Video has {video_length} frames")
         
         # Check keypoint data length
@@ -271,20 +270,16 @@ class KeypointVideoProcessor:
         print(f"Using {self.n_frames} frames")
         return self.n_frames
     
-    def load_video_batch(self, video_path, start_frame, end_frame):
+    def load_video_batch(self, video_reader, start_frame, end_frame):
         """Load a batch of video frames."""
         print(f"Loading frames {start_frame} to {end_frame}...")
-        
-        # Load specific frame range
-        avi_reader = AviReader(video_path, prepend_args=self.prepend_args)
-        avi_reader.get_file_info()
 
-        frames = avi_reader.get_frames(list(range(start_frame, min(end_frame, avi_reader.nframes))))
+        frames = video_reader.get_frames(list(range(start_frame, min(end_frame, video_reader.nframes))))
         
         # Get frame size
         if frames is not None and frames.size > 0:
             # AviReader returns (width, height), but we want (height, width) for OpenCV
-            frame_size = (avi_reader.frame_size[1], avi_reader.frame_size[0])
+            frame_size = (video_reader.frame_size[1], video_reader.frame_size[0])
             print(f"Loaded {len(frames)} frames of size {frame_size}")
             return frames, frame_size
         else:
@@ -341,14 +336,18 @@ class KeypointVideoProcessor:
             cv2.circle(frame_with_keypoints, (x_int, y_int), self.keypoint_radius, color_bgr, -1)
         
         # Add camera name label
-        if self.cam_by_conf is None or conf is None:
+        if not self.cam_by_conf or conf is None:
             # Use self.reference_camera for the label
             cv2.putText(frame_with_keypoints, self.reference_camera, (10, 30), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
         else:
             # calculate majority highest conf
-            _camIndex = np.nanargmax(np.nanmean(conf, axis=1))
-            _cam = self.cameras[_camIndex]
+            conf_mean = np.nanmean(conf, axis=1)
+            if np.any(np.isfinite(conf_mean)):
+                _camIndex = np.nanargmax(conf_mean)
+                _cam = self.cameras[_camIndex]
+            else:
+                _cam = self.reference_camera
             cv2.putText(frame_with_keypoints, _cam, (10, 30), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
 
@@ -421,14 +420,9 @@ class KeypointVideoProcessor:
             video_writer.write_frames(np.array(batch_frames), progress_bar=False)
             print(f"Wrote {len(batch_frames)} frames (batch {start_idx}-{start_idx+len(batch_frames)-1})")
     
-    def create_video(self, keypoints, min_z, max_z, frame_size):
+    def create_video(self, keypoints, min_z, max_z, frame_size, video_reader):
         """Create the video with keypoint overlays."""
         print("Creating video with keypoint overlays...")
-        
-        video_path = self.get_video_path()
-        if video_path is None:
-            print("Error: Could not find video file. Aborting.")
-            return
         
         if self.save_name:
             output_path = os.path.join(self.output_dir, f"{self.save_name}.mp4")
@@ -456,7 +450,7 @@ class KeypointVideoProcessor:
                 print(f"Processing batch {start_idx}-{end_idx} of {self.n_frames} frames...")
                 
                 # Load batch of frames
-                frames, _ = self.load_video_batch(video_path, start_idx, end_idx)
+                frames, _ = self.load_video_batch(video_reader, start_idx, end_idx)
                 
                 # Process batch
                 self.process_frame_batch(
@@ -464,11 +458,11 @@ class KeypointVideoProcessor:
                 )
         else:
             for start_idx in range(self.frame_start, self.frame_end, self.batch_size):
-                end_idx = min(start_idx + self.batch_size, self.n_frames)
+                end_idx = min(start_idx + self.batch_size, self.frame_end)
                 print(f"Processing batch {start_idx}-{end_idx} of {self.frame_end - self.frame_start} frames...")
                 
                 # Load batch of frames
-                frames, _ = self.load_video_batch(video_path, start_idx, end_idx)
+                frames, _ = self.load_video_batch(video_reader, start_idx, end_idx)
                 
                 # Process batch
                 self.process_frame_batch(
@@ -477,13 +471,6 @@ class KeypointVideoProcessor:
             
         print(f"\nMP4 video saved successfully to: {output_path}")
             
-        # except Exception as e:
-        #     print(f"\nAn error occurred while creating the video: {e}")
-        #     import traceback
-        #     traceback.print_exc()
-        # finally:
-        #     print("Closing video writer...")
-        #     writer.close()
         writer.close()
     
     def process(self):
@@ -498,20 +485,38 @@ class KeypointVideoProcessor:
         if video_path is None:
             print("Error: Could not find video file. Aborting.")
             return
+
+        video_reader = AviReader(video_path, prepend_args=self.prepend_args)
+        video_reader.get_file_info()
         
-        # Determine video length
-        self.determine_video_length(video_path, keypoints)
-        
-        # Calculate z-range for colormap
-        min_z, max_z = self.calculate_z_range(keypoints)
-        
-        # Load a single frame to get dimensions
-        first_frames, frame_size = self.load_video_batch(video_path, 0, 1)
-        if frame_size is None:
-            print("Error: Could not determine frame size. Aborting.")
-            return
-        
-        # Create video with keypoint overlays
-        self.create_video(keypoints, min_z, max_z, frame_size)
-        
-        print("Processing complete!")
+        try:
+            # Determine video length
+            self.determine_video_length(video_reader, keypoints)
+
+            if self.frame_start is not None and self.frame_end is None:
+                raise ValueError("frame_end must be provided when frame_start is set.")
+            if self.frame_start is None and self.frame_end is not None:
+                raise ValueError("frame_start must be provided when frame_end is set.")
+            if self.frame_start is not None:
+                self.frame_start = max(0, int(self.frame_start))
+                self.frame_end = min(int(self.frame_end), self.n_frames)
+                if self.frame_start >= self.frame_end:
+                    raise ValueError("frame_start must be less than frame_end after clamping.")
+            
+            # Calculate z-range for colormap
+            min_z, max_z = self.calculate_z_range(keypoints)
+            
+            # Load a single frame to get dimensions
+            first_frames, frame_size = self.load_video_batch(video_reader, 0, 1)
+            if frame_size is None:
+                print("Error: Could not determine frame size. Aborting.")
+                return
+            
+            # Create video with keypoint overlays
+            self.create_video(keypoints, min_z, max_z, frame_size, video_reader)
+            
+            print("Processing complete!")
+        finally:
+            close_fn = getattr(video_reader, "close", None)
+            if callable(close_fn):
+                close_fn()

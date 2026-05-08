@@ -12,6 +12,9 @@ from .overlay_processor import KeypointVideoProcessor
 def create_overlay_video(session_dir, version_num, 
                          reference_camera,
                          intrinsics_file,
+                         conda_env_name,
+                         output_path,
+                         keypoint_file=None,
                          **overlay_kwargs):
     """
     Initializes a KeypointVideoProcessor and generates the 2D overlay video.
@@ -28,6 +31,9 @@ def create_overlay_video(session_dir, version_num,
         The name of the camera to process.
     intrinsics_file : str, optional
         Path to the intrinsics TOML file.
+    keypoint_file : str, optional
+        Absolute or relative path to a specific merged_keypoints.h5 file.
+        If provided, this overrides the default version-based keypoint path.
     **kwargs : 
         Additional arguments passed to KeypointVideoProcessor 
         (e.g., n_frames, batch_size, raw, save_name, frame_start, frame_end, cam_by_conf, output_path).
@@ -40,7 +46,10 @@ def create_overlay_video(session_dir, version_num,
         session_dir=session_dir,
         version_num=version_num,
         reference_camera=reference_camera,
+        output_path=output_path,
         intrinsics_file=intrinsics_file,
+        conda_env_name=conda_env_name,
+        keypoint_file=keypoint_file,
         **overlay_kwargs
     )
 

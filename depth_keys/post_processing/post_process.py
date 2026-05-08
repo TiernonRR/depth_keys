@@ -1,11 +1,8 @@
-import sys # TODO replace when pip
-sys.path.append("/storage/home/hcoda1/3/triesenmy3/r-jmarkowitz30-0/markovids/src")
-
 from markovids import vid, pcl
-from depth_keys.post_processing.conversion_computations import *
-import sys
-import numpy as np
 import toml
+import logging
+
+from depth_keys.post_processing.conversion_computations import convert_2d_to_3d
 
 def process_session(
     config_path,
@@ -18,9 +15,13 @@ def process_session(
     cable, 
     save_dir, 
     bundle_adjust=False,
-    transforms_path=None):
+    conda_env_name=None,
+    transforms_path=None,
+    verbose=True):
     
-    print("Using the following avis: ")
+    if verbose:
+        logger = logging.getLogger(__name__)
+
     for avi in avis:
         print(f"-> {avi}")
 
@@ -28,19 +29,25 @@ def process_session(
         Convert 2d to 3d ...
     '''
 
-    print("Converting 2D keypoints to 3D")
+    # print("Converting 2D keypoints to 3D")
+    if verbose:
+        logger.info("Converting 2D keypoints to 3D...")
 
     _ = convert_2d_to_3d(kpoint_root_dir, 
                         avis, 
                         version_num, 
                         cable,
-                        node_names)
+                        node_names,
+                        config_path,
+                        conda_env_name=conda_env_name)
 
     '''
         Merge keypoints across views...
     '''
 
-    print("Merging keypoints...")
+    # print("Merging keypoints...")
+    if verbose:
+        logger.info("Merging keypoints...")
 
 
     intrinsics_matrix, distortion_coeffs = vid.io.format_intrinsics(toml.load(intrinsics_file))
@@ -56,4 +63,3 @@ def process_session(
         transforms_path=transforms_path
     )
     
-

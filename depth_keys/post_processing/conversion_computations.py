@@ -1,6 +1,5 @@
 import sleap_io as sio
 import os
-import sys
 import joblib
 import numpy as np
 import warnings
@@ -8,77 +7,112 @@ import cv2
 import copy 
 import toml
 
-import sys
-sys.path.append("/storage/home/hcoda1/3/triesenmy3/r-jmarkowitz30-0/markovids/src")
 from markovids import vid
 
 from tqdm.auto import tqdm
 
-def cable_agg_func_with_cable(x):
-    return np.nanpercentile(x, 75)
 
-def cable_agg_func_no_cable(x):
-    return np.nanmax(x)
+def _to_plain_types(obj):
+    if isinstance(obj, dict):
+        return {k: _to_plain_types(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_to_plain_types(v) for v in obj]
+    if isinstance(obj, tuple):
+        return tuple(_to_plain_types(v) for v in obj)
+    return obj
 
-# TODO make this dependent on datatype as it may be different for cable data
-optimal_args = {
-  "tail_tip": {
-    "patch_radius": 7,
-    "agg_func": 95
-  },
-  "tail_middle": {
-    "patch_radius": 8,
-    "agg_func": 75
-  },
-  "tail_base": {
-    "patch_radius": 8,
-    "agg_func": 75
-  },
-  "back_bottom": {
-    "patch_radius": 6,
-    "agg_func": 75
-  },
-  "back_middle_lower": {
-    "patch_radius": 10,
-    "agg_func": 75
-  },
-  "back_middle_upper": {
-    "patch_radius": 10,
-    "agg_func": 95
-  },
-  "back_top": {
-    "patch_radius": 8,
-    "agg_func": 90
-  },
-  "left_ear": {
-    "patch_radius": 7,
-    "agg_func": 95
-  },
-  "right_ear": {
-    "patch_radius": 5,
-    "agg_func": 90
-  },
-  "snout": {
-    "patch_radius": 10,
-    "agg_func": 75
-  },
-  "left_hip": {
-    "patch_radius": 8,
-    "agg_func": 75
-  },
-  "right_hip": {
-    "patch_radius": 10,
-    "agg_func": 75
-  },
-  "left_shoulder": {
-    "patch_radius": 8,
-    "agg_func": 75
-  },
-  "right_shoulder": {
-    "patch_radius": 10,
-    "agg_func": 75
-  }
-}
+
+def _get_resolve_z_config(config, config_path):
+    resolve_z_cfg = config.get("resolve_z")
+    if isinstance(resolve_z_cfg, dict):
+        return resolve_z_cfg
+
+    post_cfg = config.get("post_processing")
+    if isinstance(post_cfg, dict):
+        return post_cfg
+
+    raise KeyError(
+        "Missing [resolve_z] (or backward-compatible [post_processing]) section "
+        f"in config: {config_path}"
+    )
+
+
+def _load_depth_params(config_path):
+    config = toml.load(config_path)
+    resolve_z_cfg = _get_resolve_z_config(config, config_path)
+    depth_params = resolve_z_cfg.get("depth_patch_parameters")
+    if depth_params is None:
+        raise KeyError(
+            "Missing [resolve_z.depth_patch_parameters] "
+            "(or backward-compatible [post_processing.depth_patch_parameters]) "
+            f"in config: {config_path}"
+        )
+    if not isinstance(depth_params, dict):
+        raise TypeError(
+            "[resolve_z.depth_patch_parameters] must be a table of node names to settings."
+        )
+    return _to_plain_types(depth_params)
+
+
+def _load_depth_processing_overrides(config_path, cable):
+    config = toml.load(config_path)
+    resolve_z_cfg = _get_resolve_z_config(config, config_path)
+    variant_key = "depth_processing_cable" if cable else "depth_processing"
+    depth_cfg = resolve_z_cfg.get(variant_key)
+    if depth_cfg is None:
+        raise KeyError(
+            f"Missing [resolve_z.{variant_key}] "
+            f"(or backward-compatible [post_processing.{variant_key}]) in config: {config_path}"
+        )
+
+    bilateral_kwargs = depth_cfg.get("bilateral_kwargs")
+    if bilateral_kwargs is None:
+        raise KeyError(
+            f"Missing [resolve_z.{variant_key}.bilateral_kwargs] in config: {config_path}"
+        )
+    bilateral_kwargs = _to_plain_types(bilateral_kwargs)
+
+    replace_height_spikes_kwargs = depth_cfg.get("replace_height_spikes_kwargs")
+    if not replace_height_spikes_kwargs:
+        replace_height_spikes_kwargs = None
+    else:
+        replace_height_spikes_kwargs = _to_plain_types(replace_height_spikes_kwargs)
+    return bilateral_kwargs, replace_height_spikes_kwargs
+
+
+def _normalize_node_name(node_name):
+    if node_name is None:
+        return None
+    if isinstance(node_name, bytes):
+        return node_name.decode("utf-8", errors="ignore")
+    return str(node_name)
+
+
+def _map_instance_points_to_array(points, frame_arr, body_part_mapping, node_names):
+    for j in range(len(points)):
+        point = points[j]
+
+        point_name = None
+        try:
+            point_name = point["name"]
+        except Exception:
+            point_name = None
+
+        normalized_name = _normalize_node_name(point_name)
+        point_index = body_part_mapping.get(normalized_name)
+
+        # Backward-compatible fallback: use positional assignment only when names
+        # are missing or positional name matches expected node.
+        if point_index is None and j < len(node_names):
+            expected_name = node_names[j]
+            if normalized_name is None or normalized_name == expected_name:
+                point_index = j
+
+        if point_index is None:
+            continue
+        frame_arr[point_index][0] = point["xy"][0]
+        frame_arr[point_index][1] = point["xy"][1]
+        frame_arr[point_index][2] = point["score"]
 
 def replace_height_spikes(depth_map, threshold=30, ksize=5, z_scale=4):
     """
@@ -110,19 +144,43 @@ def replace_height_spikes(depth_map, threshold=30, ksize=5, z_scale=4):
 
 def get_3d_kpoints(
     avi_file,
+    config_path,
     batch_size=2000,
     kpoint_2d_save_dir="_kpoints_v0_2d",
     save_dir="_kpoints_v0_3d",
-    # patch_radius=3,
-    # agg_func=np.nanmax,
     z_valid_range = (1,200),
-    reader_kwargs={"threads": 2, 
-                   "prepend_args" : "source ~/conda_activate ; conda activate ffmpeg"},
+    reader_kwargs=None,
     bilateral_kwargs={"d":5, "sigmaColor": 15, "sigmaSpace":3},
     replace_height_spikes_kwargs=None,
-    force=False,
     new_save_dir = None
 ):
+    """
+    Get 3D keypoints from 2d keypoint locations, and save to save_dir under camera name derived from avi_file.
+
+    Args:
+    avi_file : str
+        Absolute or relative path to the video file to process.
+    config_path : str
+        Path to the TOML config file containing depth processing parameters.
+    batch_size : int, optional
+        Number of frames to process in each batch (default: 2000).
+    kpoint_2d_save_dir : str, optional
+        Directory name where 2D keypoint files are saved relative to the video (default: "_kpoints_v0_2d").
+    save_dir : str, optional
+        Directory name to save the 3D keypoint files relative to the video (default: "_kpoints_v0_3d").
+    z_valid_range : tuple, optional
+        Minimum and maximum valid Z values in mm (default: (1, 200)).
+    reader_kwargs : dict, optional
+        Additional keyword arguments to pass to the video reader (e.g., for multithreading).
+    bilateral_kwargs : dict, optional
+        Keyword arguments for OpenCV bilateralFilter (default: {"d":5, "sigmaColor": 15, "sigmaSpace":3}).
+    replace_height_spikes_kwargs : dict, optional
+        Keyword arguments for height spike replacement (default: None, which disables spike replacement).   
+    """
+    if reader_kwargs is None:
+        reader_kwargs = {"threads": 2}
+
+    depth_patch_parameters = _load_depth_params(config_path)
 
     avi_dir = os.path.dirname(avi_file)
     cam = os.path.splitext(os.path.basename(avi_file))[0]
@@ -147,9 +205,8 @@ def get_3d_kpoints(
     metadata = toml.load(metadata_file)
     new_metadata = copy.deepcopy(metadata)
 
-    new_metadata["agg_func"] = "percentile" #agg_func.__name__
-    new_metadata["patch_radius"] = None #patch_radius
     new_metadata["z_valid_range"] = z_valid_range
+    new_metadata["depth_patch_parameters"] = depth_patch_parameters
     
     kpoints = joblib.load(kpoint_file)
 
@@ -158,6 +215,13 @@ def get_3d_kpoints(
         return None
 
     nbody_parts = kpoints.shape[1]
+    node_names = new_metadata.get("node_names", [])
+    missing_depth_nodes = sorted(set(node_names) - set(depth_patch_parameters.keys()))
+    if missing_depth_nodes:
+        raise KeyError(
+            "Missing depth patch parameters for node(s): "
+            + ", ".join(missing_depth_nodes)
+        )
 
     # move it to 3d...
     kpoints_3d = np.full((nframes, nbody_parts, 4), fill_value=np.nan, dtype=np.float32)
@@ -185,20 +249,23 @@ def get_3d_kpoints(
             use_frame = vid.util.fill_holes(use_frame)
 
             for j, _kpoint in enumerate(kpoint_batch[i]):
-                node_name = new_metadata["node_names"][j]
+                node_name = node_names[j]
 
-                patch_radius = optimal_args[node_name]["patch_radius"]
-                percentile = optimal_args[node_name]["agg_func"]
+                patch_radius = depth_patch_parameters[node_name]["patch_radius"]
+                percentile = depth_patch_parameters[node_name]["agg_func"]
 
                 # now we're in each body part...
-                try:
-                    x = int(np.round(_kpoint[0]))
-                    y = int(np.round(_kpoint[1]))
-                except ValueError:
+                # try:
+                #     x = int(np.round(_kpoint[0]))
+                #     y = int(np.round(_kpoint[1]))
+                # except ValueError:
+                #     continue
+
+                if not np.isfinite(_kpoint[0]) or not np.isfinite(_kpoint[1]): 
                     continue
                     
-                xi = int(round(x))
-                yi = int(round(y))
+                xi = int(np.round(_kpoint[0]))
+                yi = int(np.round(_kpoint[1]))
 
                 x0 = max(xi - patch_radius, 0)
                 x1 = min(xi + patch_radius + 1, width)
@@ -215,10 +282,7 @@ def get_3d_kpoints(
                     continue
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore", category=RuntimeWarning)
-                    try:
-                        kpoints_3d[working_range[i], j, 2] = np.nanpercentile(patch, percentile)
-                    except ValueError as e:
-                        pass
+                    kpoints_3d[working_range[i], j, 2] = np.nanpercentile(patch, percentile)
         
     read_obj.close()
     
@@ -228,7 +292,15 @@ def get_3d_kpoints(
     
     return None
 
-def convert_2d_to_3d(kpoint_root_dir, avis, version_num, cable, node_names): # TODO write a unit test ensuring correct mapping of values
+def convert_2d_to_3d(
+    kpoint_root_dir,
+    avis,
+    version_num,
+    cable,
+    node_names,
+    config_path,
+    conda_env_name=None,
+):
     kpoint_save_dir = f"_kpoints_v{version_num}_2d"
 
     nbody_parts = len(node_names)
@@ -253,16 +325,8 @@ def convert_2d_to_3d(kpoint_root_dir, avis, version_num, cable, node_names): # T
             if len(_frame.instances) == 0 : 
                 continue
 
-            points = _frame.instances[0].points # _points returns all points, points only returns labeled points
-            for j in range(points.shape[0]):
-                _point = points[j]
-
-                if node_names[j] != _point["name"]:
-                    continue
-
-                new_arr[i][j][0] = _point['xy'][0]  
-                new_arr[i][j][1] = _point['xy'][1]
-                new_arr[i][j][2] = _point['score']
+            points = _frame.instances[0].points
+            _map_instance_points_to_array(points, new_arr[i], body_part_mapping, node_names)
      
         # save a toml with relevant stuff...
         metadata = {}
@@ -278,31 +342,29 @@ def convert_2d_to_3d(kpoint_root_dir, avis, version_num, cable, node_names): # T
 
         joblib.dump(new_arr, save_file)
 
-    if cable: 
-        bilateral_kwargs={"d":11, "sigmaColor": 30, "sigmaSpace": 5}
-        replace_height_spikes_kwargs={"threshold": 100, "ksize": 11}
-        cable_agg_func = cable_agg_func_with_cable
-
-    else: 
-        bilateral_kwargs={"d":9, "sigmaColor": 15, "sigmaSpace":3}
-        replace_height_spikes_kwargs=None
-        cable_agg_func = cable_agg_func_no_cable
+    bilateral_kwargs, replace_height_spikes_kwargs = _load_depth_processing_overrides(
+        config_path, cable
+    )
 
     delays = []
+    reader_kwargs = {"threads": 2}
+    if conda_env_name:
+        reader_kwargs["prepend_args"] = (
+            f"source ~/conda_activate ; conda activate {conda_env_name}"
+        )
+    reader_kwargs = _to_plain_types(reader_kwargs)
 
     print("Processing files to get 3D keypoints...")
     for _avi in avis:
         delays.append(
             joblib.delayed(get_3d_kpoints)(
                 _avi,
-                force=False,
+                config_path=config_path,
                 bilateral_kwargs=bilateral_kwargs,
                 replace_height_spikes_kwargs=replace_height_spikes_kwargs,
                 batch_size=3000,
-                # patch_radius=4,
-                # agg_func=cable_agg_func, # max for data without cables, median for data with cables...
                 z_valid_range=(1,200),
-                reader_kwargs={"threads": 2},
+                reader_kwargs=reader_kwargs,
                 save_dir = f"_kpoints_v{version_num}_3d",
                 kpoint_2d_save_dir = f"_kpoints_v{version_num}_2d"
             )
