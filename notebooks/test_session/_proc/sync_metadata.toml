@@ -1,0 +1,56 @@
+save_dir = "_proc"
+undistort = true
+preview_inpaint = true
+timestamp_order = [ "frame_id", "frame_index", "device_timestamp", "system_timestamp",]
+batch_size = 500
+vid_camera_order = [ "Lucid Vision Labs-HTP003S-001-224500508", "Lucid Vision Labs-HTP003S-001-223702048", "Lucid Vision Labs-HTP003S-001-223702266",]
+get_bground = "<function get_bground at 0x15552198c0d0>"
+read_timestamps_multicam = "<function read_timestamps_multicam at 0x15552197fd90>"
+read_frames_multicam = "<function read_frames_multicam at 0x15552197fbe0>"
+MP4WriterPreview = "<class 'markovids.vid.io.MP4WriterPreview'>"
+AviReader = "<class 'markovids.vid.io.AviReader'>"
+AviWriter = "<class 'markovids.vid.io.AviWriter'>"
+video_montage = "<function video_montage at 0x15552198c550>"
+fill_holes = "<function fill_holes at 0x15552198feb0>"
+toml = "<module 'toml' from '/storage/home/hcoda1/4/jmarkowitz30/.conda/envs/cli/lib/python3.10/site-packages/toml/__init__.py'>"
+copy = "<module 'copy' from '/storage/home/hcoda1/4/jmarkowitz30/.conda/envs/cli/lib/python3.10/copy.py'>"
+warnings = "<module 'warnings' from '/storage/home/hcoda1/4/jmarkowitz30/.conda/envs/cli/lib/python3.10/warnings.py'>"
+cv2 = "<module 'cv2' from '/storage/home/hcoda1/4/jmarkowitz30/.conda/envs/cli/lib/python3.10/site-packages/cv2/__init__.py'>"
+data_dir = "/storage/project/r-jmarkowitz30-0/shared/active_lab_members/markowitz_jeffrey/active_projects/6-OHDA/session_20250823174900-232113 (system76-pc)"
+os = "<module 'os' from '/storage/home/hcoda1/4/jmarkowitz30/.conda/envs/cli/lib/python3.10/os.py'>"
+
+[timestamp_kwargs]
+merge_tolerance = 0.006
+multiplexed = false
+burn_in = 500
+return_full_sync_only = true
+use_timestamp_field = "device_timestamp_ref"
+
+[intrinsics_matrix]
+"Lucid Vision Labs-HTP003S-001-223702048" = [ [ "np.float64(525.95556640625)", "np.float64(0.0)", "np.float64(318.2959442138672)",], [ "np.float64(0.0)", "np.float64(525.95556640625)", "np.float64(231.7703094482422)",], [ "np.float64(0.0)", "np.float64(0.0)", "np.float64(1.0)",],]
+"Lucid Vision Labs-HTP003S-001-223702266" = [ [ "np.float64(524.6923217773438)", "np.float64(0.0)", "np.float64(318.48040771484375)",], [ "np.float64(0.0)", "np.float64(524.6923217773438)", "np.float64(231.6898651123047)",], [ "np.float64(0.0)", "np.float64(0.0)", "np.float64(1.0)",],]
+"Lucid Vision Labs-HTP003S-001-224500508" = [ [ "np.float64(523.7444305419922)", "np.float64(0.0)", "np.float64(319.4745635986328)",], [ "np.float64(0.0)", "np.float64(523.7444305419922)", "np.float64(235.78607177734375)",], [ "np.float64(0.0)", "np.float64(0.0)", "np.float64(1.0)",],]
+
+[distortion_coeffs]
+"Lucid Vision Labs-HTP003S-001-223702048" = [ "np.float64(-0.23352144099771976)", "np.float64(0.12487661466002464)", "np.float64(-0.00019956380128860474)", "np.float64(6.227195262908936e-05)", "np.float64(-0.048280706629157066)",]
+"Lucid Vision Labs-HTP003S-001-223702266" = [ "np.float64(-0.23104320652782917)", "np.float64(0.12093753181397915)", "np.float64(-8.717551827430725e-05)", "np.float64(0.0002587791532278061)", "np.float64(-0.04991564899682999)",]
+"Lucid Vision Labs-HTP003S-001-224500508" = [ "np.float64(-0.2327960804104805)", "np.float64(0.12501925602555275)", "np.float64(-0.00010378658771514893)", "np.float64(-0.0001969374716281891)", "np.float64(-0.053315797820687294)",]
+
+[preview_kwargs]
+crf = 26
+vmin = 5.0
+vmax = 90.0
+cmap = "viridis"
+ncols = 2
+
+[bground_kwargs]
+step_size = 1500
+agg_func = "<function median at 0x15552f8e8bb0>"
+save_dir = "_bground"
+force = true
+
+[reader_kwargs]
+threads = 4
+
+[bground_kwargs.reader_kwargs]
+threads = 5

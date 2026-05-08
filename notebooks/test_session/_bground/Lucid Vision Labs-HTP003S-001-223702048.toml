@@ -1,0 +1,13 @@
+avi_file = "/storage/project/r-jmarkowitz30-0/shared/active_lab_members/markowitz_jeffrey/active_projects/6-OHDA/session_20250823174900-232113 (system76-pc)/Lucid Vision Labs-HTP003S-001-223702048.avi"
+step_size = 1500
+agg_func = "<function median at 0x15552f8e8bb0>"
+save_dir = "_bground"
+force = true
+tifffile = "<module 'tifffile' from '/storage/home/hcoda1/4/jmarkowitz30/.conda/envs/cli/lib/python3.10/site-packages/tifffile/__init__.py'>"
+get_bground = "<function get_bground at 0x15552198c0d0>"
+os = "<module 'os' from '/storage/home/hcoda1/4/jmarkowitz30/.conda/envs/cli/lib/python3.10/os.py'>"
+toml = "<module 'toml' from '/storage/home/hcoda1/4/jmarkowitz30/.conda/envs/cli/lib/python3.10/site-packages/toml/__init__.py'>"
+undistorted = false
+
+[reader_kwargs]
+threads = 5
