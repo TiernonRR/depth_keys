@@ -14,12 +14,14 @@ dependencies = [
     "numba",
     "scikit-image",
     "toml",
+    "click",
     
     # Specific versions you requested
-    "sleap-io==0.5.7",
-    "sleap-nn==0.0.4",
+    #"sleap-io==0.5.7", # installed with sleap-nn
+    "sleap-nn==0.2.0",
 
-    "markovids @ git+https://github.com/triesenmy3/markovids.git"
+    # "markovids @ git+https://github.com/triesenmy3/markovids.git" # incorrect
+    "markovids @ git+https://github.com/TiernonRR/markovids-tr.git"
 ]
 
 # Optional: Tools for development (install via `pip install .[dev]`)
