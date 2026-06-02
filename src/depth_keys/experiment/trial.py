@@ -6,7 +6,7 @@ import h5py
 import toml
 
 from depth_keys.post_processing.post_process import process_session
-from depth_keys.prediction.predict import run_inference_on_video
+from depth_keys.kpoints.predict import run_inference_on_video
 import depth_keys.visualization.utils as utils
 import depth_keys.visualization.viz as viz
 

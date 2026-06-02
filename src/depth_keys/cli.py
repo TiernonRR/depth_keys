@@ -1,6 +1,7 @@
 from depth_keys.slurm import build_slurm_command
 import click
 import functools
+import os
 
 @click.group()
 def cli():
@@ -26,17 +27,27 @@ def slurm_params(func):
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
 
-
+# TODO:
+# 1. Check directory for avis...
+# 2. Handle file inputs, have env var options...
+# 3. Write out a batch so that each one can be processed...
 # fmt: off
 @cli.command( name="create-2dkpoint-batch", context_settings={"show_default": True, "auto_envvar_prefix": "MARKOLABCLI_SLURM"}, )
 @click.argument("command", type=str)
 @click.argument("chk_dir", type=click.Path())
+@click.option("--config-path", "-c", type=click.Path(), default="", help="Path to config file", envvar="DEPTHKEYS_CONFIG_FILE", show_envvar=True, )
+@click.option("--ci-model-path", "-i", type=click.Path(), default="", help="Path to config file", envvar="DEPTHKEYS_CI_MODEL", show_envvar=True, )
+@click.option("--centroid-model-path", "-m", type=click.Path(), default="", help="Path to config file", envvar="DEPTHKEYS_CENTROID_MODEL", show_envvar=True, )
+@click.option("--reference-camera", "-c", type=str, default="Lucid Vision Labs-HTP003S-001-224500508", envvar="DEPTHKEYS_REFERENCE_CAMERA", show_envvar=True, )
+@click.option("--cable", is_flag=True, help="Set flag if data contains a cable")
 # fmt: on
 @slurm_params
-def create_slurm_cli(command, chk_dir, ncpus, memory, wall_time, qos, prefix, suffix, account, ngpus, gpu_type, constraint):
-
- 	if chk_dir is None:
+def create_slurm_cli(command, chk_dir, config_path, ci_model_path, centroid_model_path, reference_camera, cable, ncpus, memory, wall_time, qos, prefix, suffix, account, ngpus, gpu_type, constraint):
+ 	
+	if chk_dir is None:
         chk_dir = os.getcwd() 
+        
+	
 
 	# now walk through directories and ensure we have what we need etc...  
 

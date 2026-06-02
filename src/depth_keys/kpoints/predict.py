@@ -24,7 +24,7 @@ def run_inference_on_video(
     video_path: str,
     output_path: str,
     ci_model_path: str = None,
-    centroid_model_path: str = None
+    centroid_model_path: str = None,
     batch_size: int = 16,
     max_instances: int = 1,
     peak_threshold: float = 0.0,
