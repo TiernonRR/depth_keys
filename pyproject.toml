@@ -19,8 +19,6 @@ dependencies = [
     "sleap-io==0.5.7",
     "sleap-nn==0.0.4",
 
-    # Your git dependency
-    # Note: Ensure this URL points to YOUR new repo, not the advisor's
     "markovids @ git+https://github.com/triesenmy3/markovids.git"
 ]
 
@@ -31,5 +29,6 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["depth_keys*"]
-exclude = ["notebooks*", "models*", "example_scripts*"]
+where = ["src"]
+#include = ["depth_keys*"]
+#exclude = ["notebooks*", "models*", "example_scripts*"]
