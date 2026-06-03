@@ -3,9 +3,11 @@ import click
 import functools
 import os
 
+
 @click.group()
 def cli():
     pass
+
 
 # TODO
 # add code for applying sleap inference and conversion to 3d via
@@ -27,52 +29,161 @@ def slurm_params(func):
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
 
+
+def kpoint_params(func):
+    # fmt: off
+    @click.option("--config-path", "-c", type=click.Path(), help="Path to config file", envvar="DEPTHKEYS_CONFIG", show_envvar=True, )
+    @click.option("--ci-model-path", "-i", type=click.Path(), help="Path to centered instance model", envvar="DEPTHKEYS_CI_MODEL", show_envvar=True, )
+    @click.option("--centroid-model-path", "-m", type=click.Path(), help="Path to centroid model", envvar="DEPTHKEYS_CENTROID_MODEL", show_envvar=True, )
+    @click.option("--intrinsics-path", "-t", type=click.Path(), help="Path to camera intrinsics", envvar="DEPTHKEYS_INTRINSICS", show_envvar=True, )
+    @click.option("--transform-path", "-t", type=click.Path(), help="Path to average transforms", envvar="DEPTHKEYS_AVG_TRANSFORM", show_envvar=True, )
+    @click.option("--skeleton-path", "-t", type=click.Path(), help="Path to sleap json skeleton definition", envvar="DEPTHKEYS_SKELETON", show_envvar=True, )
+    @click.option("--node-path", "-n", type=click.Path(), help="Path to node names", envvar="DEPTHKEYS_NODES", show_envvar=True, )
+    @click.option("--reference-camera", "-c", type=str, default="Lucid Vision Labs-HTP003S-001-224500508", envvar="DEPTHKEYS_REFERENCE_CAMERA", show_envvar=True, )
+    @click.option("--cable", is_flag=True, help="Set flag if data contains a cable")
+    @click.option("--compute-2d", is_flag=True, help="Process 2d keypoints")
+    @click.option("--compute-3d", is_flag=True, help="Process 3d keypoints")
+    @click.option("--render", is_flag=True, help="Render keypoint data")
+    @functools.wraps(func)
+    # fmt: on
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+
+
 # TODO:
 # 1. Check directory for avis...
 # 2. Handle file inputs, have env var options...
 # 3. Write out a batch so that each one can be processed...
 # fmt: off
-@cli.command( name="create-2dkpoint-batch", context_settings={"show_default": True, "auto_envvar_prefix": "DEPTHKEYS"}, )
-@click.argument("command", type=str)
+@cli.command( name="create-kpoint-batch", context_settings={"show_default": True, "auto_envvar_prefix": "DEPTHKEYS"}, )
 @click.argument("chk_dir", type=click.Path())
-@click.option("--config-path", "-c", type=click.Path(), help="Path to config file", envvar="DEPTHKEYS_CONFIG_FILE", show_envvar=True, )
-@click.option("--ci-model-path", "-i", type=click.Path(), help="Path to config file", envvar="DEPTHKEYS_CI_MODEL", show_envvar=True, )
-@click.option("--centroid-model-path", "-m", type=click.Path(), help="Path to config file", envvar="DEPTHKEYS_CENTROID_MODEL", show_envvar=True, )
-@click.option("--transform-path", "-t", type=click.Path(), help="Path to average transforms", envvar="DEPTHKEYS_AVG_TRANSFORM", show_envvar=True, )
-@click.option("--reference-camera", "-c", type=str, default="Lucid Vision Labs-HTP003S-001-224500508", envvar="DEPTHKEYS_REFERENCE_CAMERA", show_envvar=True, )
-@click.option("--cable", is_flag=True, help="Set flag if data contains a cable")
-# fmt: on
+@kpoint_params
 @slurm_params
-def create_slurm_cli(command, chk_dir, config_path, ci_model_path, centroid_model_path, transform_path, reference_camera, cable, ncpus, memory, wall_time, qos, prefix, suffix, account, ngpus, gpu_type, constraint):
-     
+def create_kpoint_batch(chk_dir, 
+                        config_path, 
+                        ci_model_path, 
+                        intrinsics_path, 
+                        centroid_model_path, 
+                        transform_path, 
+                        skeleton_path,
+                        node_path,
+                        reference_camera, 
+                        cable, 
+                        compute_2d,
+                        compute_3d,
+                        render,
+                        ncpus, 
+                        memory, 
+                        wall_time, 
+                        qos, 
+                        prefix, 
+                        suffix, 
+                        account, 
+                        ngpus, 
+                        gpu_type, 
+                        constraint):
+    
+    command = "depth_keys compute-keypoints {process_dir}"
+    command += f" --config-path {config_path}"
+    command += f" --ci-model-path {ci_model_path}"
+    command += f" --centroid-model-path {centroid_model_path}"
+    command += f" --transform-path {transform_path}"
+    command += f" --skeleton-path {skeleton_path}"
+    command += f" --node-path {node_path}"
+    command += f" --reference-camera {reference_camera}"
+
+    if cable:
+        command += " --cable"
+
+    if compute_2d:
+        command += " --compute-2d"
+
+    if compute_3d:
+        command += " --compute-3d"
+
+    if render:
+        command += " --render" 
+
+    if prefix is not None:
+        base_command = f"{prefix};"
+    else:
+        base_command = ""
+
+    if (gpu_type is not None) and (ngpus > 0):
+        gpu_cmd = f"{gpu_type}:{ngpus}"
+    else:
+        gpu_cmd = f"{ngpus}"
+
+    cluster_prefix = f'sbatch --gpus-per-node={gpu_cmd} --nodes 1 --ntasks-per-node 1 --cpus-per-task {ncpus:d} --mem={memory} -q {qos} -t {wall_time} -A {account} '
+
+    try:
+        iter(constraint)
+    except TypeError as te:
+        if constraint is not None:
+            constraint = [constraint]
+
+    if constraint is not None:
+        for _constraint in constraint:
+            cluster_prefix += f'--constraint="{_constraint}" '
+
+    cluster_prefix += '--wrap "'
+
+    issue_command = f"{cluster_prefix}{base_command}"
+    
+    if suffix is not None:
+        run_command = f'{issue_command}{command}{suffix}"'
+    else:
+        run_command = f'{issue_command}{command}"'
+
     if chk_dir is None:
         chk_dir = os.getcwd() 
         
     # now walk through directories and ensure we have what we need etc...  
+    # will need separate directory checks for 2d 3d, etc.
 
 
 
-@cli.command( name="process-directory-2dkpoints", context_settings={"show_default": True, "auto_envvar_prefix": "MARKOLABCLI_SLURM"}, )
+
+@cli.command( name="compute-keypoints", context_settings={"show_default": True, "auto_envvar_prefix": "MARKOLABCLI_SLURM"}, )
 @click.argument("proc_dir", type=click.Path())
-@click.option("--ci-model-path", "-i", type=click.Path(), help="Path to config file", envvar="DEPTHKEYS_CI_MODEL", show_envvar=True, )
-@click.option("--centroid-model-path", "-m", type=click.Path(), help="Path to config file", envvar="DEPTHKEYS_CENTROID_MODEL", show_envvar=True, )
+@click.option("--config-path", "-c", type=click.Path(), help="Path to config file", envvar="DEPTHKEYS_CONFIG", show_envvar=True, )
+@click.option("--ci-model-path", "-i", type=click.Path(), help="Path to centered instance model", envvar="DEPTHKEYS_CI_MODEL", show_envvar=True, )
+@click.option("--centroid-model-path", "-m", type=click.Path(), help="Path to centroid model", envvar="DEPTHKEYS_CENTROID_MODEL", show_envvar=True, )
 @click.option("--intrinsics-path", "-t", type=click.Path(), help="Path to camera intrinsics", envvar="DEPTHKEYS_INTRINSICS", show_envvar=True, )
 @click.option("--transform-path", "-t", type=click.Path(), help="Path to average transforms", envvar="DEPTHKEYS_AVG_TRANSFORM", show_envvar=True, )
 @click.option("--skeleton-path", "-t", type=click.Path(), help="Path to sleap json skeleton definition", envvar="DEPTHKEYS_SKELETON", show_envvar=True, )
 @click.option("--node-path", "-n", type=click.Path(), help="Path to node names", envvar="DEPTHKEYS_NODES", show_envvar=True, )
 @click.option("--reference-camera", "-c", type=str, default="Lucid Vision Labs-HTP003S-001-224500508", envvar="DEPTHKEYS_REFERENCE_CAMERA", show_envvar=True, )
 @click.option("--cable", is_flag=True, help="Set flag if data contains a cable")
+@click.option("--compute-2d", is_flag=True, help="Process 2d keypoints")
+@click.option("--compute-3d", is_flag=True, help="Process 3d keypoints")
+@click.option("--render", is_flag=True, help="Render keypoint data")
+@click.option("--force", is_flag=True, help="Overwrite pre-existing data")
 # fmt: on
-@slurm_params
-def process_directory_2dkpoints(proc_dir, config_path, ci_model_path, centroid_model_path, intrinsics_path, transform_path, skeleton_path, node_path, reference_camera, cable):
-    from depth_keys.proc import process_session
+def compute_keypoints(
+    proc_dir,
+    config_path,
+    ci_model_path,
+    centroid_model_path,
+    intrinsics_path,
+    transform_path,
+    skeleton_path,
+    node_path,
+    reference_camera,
+    cable,
+    compute_2d,
+    compute_3d,
+    render,
+    force,
+):
+    from depth_keys.proc import process_directory
     import toml
 
     if proc_dir is None:
-        proc_dir = os.getcwd() 
-        
+        proc_dir = os.getcwd()
+
     node_names = toml.load(node_path)
-    process_session(
+    process_directory(
         source_directory=proc_dir,
         config_path=config_path,
         ci_model_path=ci_model_path,
@@ -80,12 +191,11 @@ def process_directory_2dkpoints(proc_dir, config_path, ci_model_path, centroid_m
         intrinsics_path=intrinsics_path,
         transforms_path=transform_path,
         skeleton_path=skeleton_path,
-        compute_2d=True,
-        compute_3d=False,
-        compute_renders=False,
+        reference_camera=reference_camera,
+        node_names=node_names,
+        cable=cable,
+        compute_2d=compute_2d,
+        compute_3d=compute_3d,
+        render=render,
+        force=force,
     )
-        
-    
-    
-        
-    # now walk through directories and ensure we have what we need etc...  

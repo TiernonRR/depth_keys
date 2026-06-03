@@ -50,7 +50,7 @@ def run_inference_on_video(
     if centroid_model_path is None:
         centroid_model_path = str(CENTROID_MODEL_PATH)
         warnings.warn(f"No centroid model specified, attempting to load from {centroid_model_path}")
-
+    
     _predictions = run_inference(
         data_path=video_path,
         model_paths=[centroid_model_path, ci_model_path],

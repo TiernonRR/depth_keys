@@ -1,7 +1,16 @@
 from glob import glob
 import os
 
-def process_session(
+# DEFINE DEFAULTS HERE
+DEFAULT_OUTPUT_DIRS = {
+    "kpoints_2d": "_kpoints_2d_v{version}",
+    "kpoints_3d": "_kpoints_2d_v{version}",
+    "renders": "renders"
+}
+
+# TODO:
+# 1. more verbose logging of all parameters...
+def process_directory(
     source_directory,
     config_path,
     ci_model_path,
@@ -16,14 +25,17 @@ def process_session(
     cable=False,
     compute_2d=True,
     compute_3d=True,
-    compute_renders=True,
+    render=True,
+    force=False,
+    output_dirs = {}
 ):
     import warnings
     from depth_keys.experiment.trial import Trial
     
+    # do we want these hardcoded?
     video_paths = sorted(glob(os.path.join(source_directory, glob_pattern)))
-    inference_output_path = os.path.join(source_directory, "_proc", f"_key_points_v{version_num}")
-    keypoints3d_output_path = os.path.join(source_directory, "_proc", f"_key_points_v{version_num}_3d")
+    inference_output_path = os.path.join(source_directory, "_proc", f"_kpoints_v{version_num}")
+    keypoints3d_output_path = os.path.join(source_directory, "_proc", f"_kpoints_v{version_num}_3d")
     renders_output_path = os.path.join(source_directory, "_proc", "renders")
 
     if len(video_paths) > 0:
@@ -45,25 +57,18 @@ def process_session(
         transforms_path=transforms_path,
     )
 
-    inference_exists = os.path.exists(inference_output_path)
-    keypoints3d_exists = os.path.exists(keypoints3d_output_path)
-    renders_exists = os.path.exists(renders_output_path)
-
     # process_session: 2D keypoint prediction
-    if compute_2d and not inference_exists:
+    if compute_2d:
+        os.makedirs(inference_output_path, exist_ok=force)
         trial.predict_keypoints(ci_model_path=ci_model_path, centroid_model_path=centroid_model_path)
-    elif compute_2d and inference_exists:
-        warnings.warn(f"Inference directory: {inference_output_path} already exists")
-        return None
+    
     # post_process: 2D -> 3D conversion
-    if compute_3d and not keypoints3d_exists:
+    if compute_3d:
+        os.makedirs(keypoints3d_output_path, exist_ok=force) 
         trial.compute_3d_keypoints(config_path=config_path)
-    elif compute_3d and keypoints3d_exists:
-        warnings.warn(f"3D directory: {keypoints3d_output_path} already exists")
-        return None
     
     # visualize: render keypoint overlay + 3D matplotlib video
-    if compute_renders and not renders_exists:
+    if render:
         alt_key_path = os.path.join(trial.keypoints_output_path, "merged_keypoints.h5")
         trial.visualize(
             matplot_viz=True,
@@ -72,6 +77,3 @@ def process_session(
             skeleton_json_path=skeleton_path,
             alt_key_path=alt_key_path,
         )
-    elif compute_renders and renders_exists:
-        warnings.warn(f"Renders directory: {renders_output_path} already exists")
-        return None
