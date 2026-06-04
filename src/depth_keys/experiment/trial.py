@@ -6,7 +6,8 @@ import toml
 import depth_keys.visualization.utils as utils
 import depth_keys.visualization.viz as viz
 from typing import Any, Dict, List
-from depth_keys.post_processing.post_process import process_session, convert_2d_to_3d
+# from depth_keys.post_processing.post_process import process_session, convert_2d_to_3d
+from depth_keys.post_processing.conversion_computations import convert_2d_to_3d
 from depth_keys.kpoints.predict import run_inference_on_video
 
 

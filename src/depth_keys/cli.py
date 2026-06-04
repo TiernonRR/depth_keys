@@ -151,7 +151,7 @@ def kpoint_params(func):
 @click.option("--ci-model-path", "-i", type=click.Path(), help="Path to centered instance model", envvar="DEPTHKEYS_CI_MODEL", show_envvar=True, )
 @click.option("--centroid-model-path", "-m", type=click.Path(), help="Path to centroid model", envvar="DEPTHKEYS_CENTROID_MODEL", show_envvar=True, )
 @click.option("--intrinsics-path", type=click.Path(), help="Path to camera intrinsics", envvar="DEPTHKEYS_INTRINSICS", show_envvar=True, )
-@click.option("--transform-path", type=click.Path(), help="Path to average transforms", envvar="DEPTHKEYS_AVG_TRANSFORM", show_envvar=True, )
+@click.option("--transform-path", type=click.Path(), help="Path to transforms (ONLY NEEDED FOR MULTI-CAM REGISTRATION)", envvar="DEPTHKEYS_TRANSFORM", show_envvar=True, )
 @click.option("--skeleton-path", type=click.Path(), help="Path to sleap json skeleton definition", envvar="DEPTHKEYS_SKELETON", show_envvar=True, )
 @click.option("--node-path", "-n", type=click.Path(), help="Path to node names", envvar="DEPTHKEYS_NODES", show_envvar=True, )
 @click.option("--reference-camera", type=str, default="Lucid Vision Labs-HTP003S-001-224500508", envvar="DEPTHKEYS_REFERENCE_CAMERA", show_envvar=True, )

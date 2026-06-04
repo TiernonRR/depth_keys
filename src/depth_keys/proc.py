@@ -8,6 +8,24 @@ DEFAULT_OUTPUT_DIRS = {
     "renders": "renders"
 }
 
+def check_directory(
+        source_directory,
+        version_num: str = 1,
+        output_dirs: dict = {},
+):
+    use_output_dirs = DEFAULT_OUTPUT_DIRS | output_dirs
+    keypoints2d_output_path = os.path.join(source_directory, "_proc", use_output_dirs["kpoints_2d"].format(version=version_num))
+    keypoints3d_output_path = os.path.join(source_directory, "_proc", use_output_dirs["kpoints_3d"].format(version=version_num))
+    renders_output_path = os.path.join(source_directory, "_proc", "renders")
+    
+    isok = {}
+    isok["2d"] = not os.path.exists(keypoints2d_output_path)
+    isok["3d"] = not os.path.exists(keypoints3d_output_path)
+    isok["render"] = not os.path.exists(renders_output_path)
+
+    return isok
+
+
 # TODO:
 # 1. more verbose logging of all parameters...
 def process_directory(
