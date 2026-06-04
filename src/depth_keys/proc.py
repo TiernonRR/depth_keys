@@ -3,8 +3,8 @@ import os
 
 # DEFINE DEFAULTS HERE
 DEFAULT_OUTPUT_DIRS = {
-    "kpoints_2d": "_kpoints_2d_v{version}",
-    "kpoints_3d": "_kpoints_2d_v{version}",
+    "kpoints_2d": "_kpoints_v{version}_2d",
+    "kpoints_3d": "_kpoints_v{version}_3d",
     "renders": "renders"
 }
 
@@ -12,7 +12,7 @@ DEFAULT_OUTPUT_DIRS = {
 # 1. more verbose logging of all parameters...
 def process_directory(
     source_directory,
-    config_path,
+    registration_config_path,
     ci_model_path,
     centroid_model_path,
     intrinsics_path,
@@ -31,13 +31,15 @@ def process_directory(
 ):
     import warnings
     from depth_keys.experiment.trial import Trial
+
+    use_output_dirs = DEFAULT_OUTPUT_DIRS | output_dirs
     
     # do we want these hardcoded?
     video_paths = sorted(glob(os.path.join(source_directory, glob_pattern)))
-    inference_output_path = os.path.join(source_directory, "_proc", f"_kpoints_v{version_num}")
-    keypoints3d_output_path = os.path.join(source_directory, "_proc", f"_kpoints_v{version_num}_3d")
+    keypoints2d_output_path = os.path.join(source_directory, "_proc", use_output_dirs["kpoints_2d"].format(version=version_num))
+    keypoints3d_output_path = os.path.join(source_directory, "_proc", use_output_dirs["kpoints_3d"].format(version=version_num))
     renders_output_path = os.path.join(source_directory, "_proc", "renders")
-
+    
     if len(video_paths) > 0:
         print(f"Processing videos in {source_directory}: {video_paths}")
 
@@ -48,24 +50,25 @@ def process_directory(
         base_dir=os.path.dirname(source_directory),
         node_names=node_names,
         video_extension=".avi",
-        inference_output_path=inference_output_path,
-        keypoints_output_path=keypoints3d_output_path,
+        keypoints2d_output_path=keypoints2d_output_path,
+        keypoints3d_output_path=keypoints3d_output_path,
         reference_camera=reference_camera,
         intrinsics_file=intrinsics_path,
         cable=cable,
         conda_env_name=None,
         transforms_path=transforms_path,
+        # registration_config_path=registration_config_path,
     )
 
     # process_session: 2D keypoint prediction
     if compute_2d:
-        os.makedirs(inference_output_path, exist_ok=force)
+        os.makedirs(keypoints2d_output_path, exist_ok=force)
         trial.predict_keypoints(ci_model_path=ci_model_path, centroid_model_path=centroid_model_path)
     
     # post_process: 2D -> 3D conversion
     if compute_3d:
         os.makedirs(keypoints3d_output_path, exist_ok=force) 
-        trial.compute_3d_keypoints(config_path=config_path)
+        trial.compute_3d_keypoints(registration_config_path=registration_config_path)
     
     # visualize: render keypoint overlay + 3D matplotlib video
     if render:

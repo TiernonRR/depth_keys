@@ -1,14 +1,13 @@
 import json
 import os
-from typing import Any, Dict, List
-
+import logging
 import h5py
 import toml
-
-from depth_keys.post_processing.post_process import process_session
-from depth_keys.kpoints.predict import run_inference_on_video
 import depth_keys.visualization.utils as utils
 import depth_keys.visualization.viz as viz
+from typing import Any, Dict, List
+from depth_keys.post_processing.post_process import process_session, convert_2d_to_3d
+from depth_keys.kpoints.predict import run_inference_on_video
 
 
 class Trial:
@@ -16,26 +15,31 @@ class Trial:
     Represents a single run or observation within an experiment.
     Acts as interface with file paths needed for inference, post processing, and visualization.
     """
+
     def __init__(
         self,
-        trial_id: str, # associated with session
+        trial_id: str,  # associated with session
         video_paths: List[str],  # Changed from List[Video] to List[str]
         version_num: int = 1,
         base_dir: str = None,
         metadata: Dict[str, Any] = None,
         node_names: List = None,
         video_extension: str = ".avi",
-        inference_output_path: str = None,
-        keypoints_output_path : str = None,
-        viz_output_dir : str = None,
-        reference_camera : str = None,
-        intrinsics_file : str = None,
-        cable : bool = False,
+        keypoints2d_output_path: str = None,
+        keypoints3d_output_path: str = None,
+        viz_output_dir: str = None,
+        reference_camera: str = None,
+        intrinsics_file: str = None,
+        cable: bool = False,
         conda_env_name: str = None,
-        transforms_path : str = None
+        transforms_path: str = None,
+        verbose: bool = True,
+        bundle_adjust: bool = False,
+        # registration_config_path: str = None,
     ):
         # Essential identifying information
         self.trial_id: str = trial_id
+        # self.registration_config_path = registration_config_path
 
         # Associated files: List of strings pointing to video locations
         self.video_paths: List[str] = video_paths
@@ -46,11 +50,12 @@ class Trial:
 
         self.video_extension = video_extension
 
-        self.inference_output_path = inference_output_path
-        self.keypoints_output_path = keypoints_output_path
+        self.keypoints2d_output_path = keypoints2d_output_path
+        self.keypoints3d_output_path = keypoints3d_output_path
         self.viz_output_dir = viz_output_dir
         self.base_dir = base_dir
         self.version_num = version_num
+        self.bundle_adjust = bundle_adjust
 
         self.reference_camera = reference_camera
         self.intrinsics_file = intrinsics_file
@@ -59,66 +64,102 @@ class Trial:
         self.node_names = [] if node_names is None else node_names
 
         self.transforms_path = transforms_path
+        self.verbose = verbose
 
     def predict_keypoints(self, ci_model_path=None, centroid_model_path=None):
-        """Runs inference on videos in video_paths"""        
+        """Runs inference on videos in video_paths"""
 
-        if self.inference_output_path is None:
-            self.inference_output_path = f"./_keypoints_v{self.version_num}_2d"
+        if self.keypoints2d_output_path is None:
+            self.keypoints2d_output_path = f"./_keypoints_v{self.version_num}_2d"
 
-        os.makedirs(self.inference_output_path, exist_ok=True)
+        os.makedirs(self.keypoints2d_output_path, exist_ok=True)
 
         for video_path in self.video_paths:
-            
+
             save_name = os.path.splitext(os.path.basename(video_path))[0]
 
-            _ = run_inference_on_video(video_path=video_path, 
-                                        output_path=os.path.join(self.inference_output_path, f"{save_name}.slp"),
-                                        ci_model_path=ci_model_path,
-                                        centroid_model_path=centroid_model_path)
+            _ = run_inference_on_video(
+                video_path=video_path,
+                output_path=os.path.join(
+                    self.keypoints2d_output_path, f"{save_name}.slp"
+                ),
+                ci_model_path=ci_model_path,
+                centroid_model_path=centroid_model_path,
+            )
 
-    def compute_3d_keypoints(self, config_path):
+    def compute_3d_keypoints(self, registration_config_path):
         """Compute 3d keypoints from 2d SLEAP predictions."""
+        from markovids.vid.io import format_intrinsics
+        from markovids.pcl.pipeline import registration_pipeline
 
-
-        avis = self.video_paths
-        kpoint_root_dir = self.inference_output_path
-        version_num=self.version_num
+        # avis = self.video_paths
+        # kpoint_root_dir = self.keypoints2d_output_path
         use_data_dir = os.path.join(self.base_dir, self.trial_id)
-        version_num = self.version_num
-        intrinsics_file = self.intrinsics_file
-        cable = self.cable
-        node_names = self.node_names
-        transforms_path = self.transforms_path
-        
+        # transforms_path = self.transforms_path
 
-        if self.keypoints_output_path is None:
-            self.keypoints_output_path = os.path.join(self.base_dir, self.trial_id, "_proc", f"_kpoints_v{version_num}_3d")
-            
-        save_dir = self.keypoints_output_path
-        
-        if self.conda_env_name is None:
-            raise ValueError("conda_env_name is required for 3D keypoint computation.")
+        if self.keypoints3d_output_path is None:
+            self.keypoints3d_output_path = os.path.join(
+                self.base_dir, self.trial_id, "_proc", f"_kpoints_v{version_num}_3d"
+            )
 
-        process_session(
-            config_path,
-            use_data_dir,
-            avis,
-            kpoint_root_dir,
-            intrinsics_file,
-            version_num,
-            node_names,
-            cable,
-            save_dir,
+        save_dir = self.keypoints3d_output_path
+        if self.verbose:
+            logger = logging.getLogger(__name__)
+
+        for avi in self.video_paths:
+            print(f"-> {avi}")
+
+        # print("Converting 2D keypoints to 3D")
+        if self.verbose:
+            logger.info("Converting 2D keypoints to 3D...")
+
+        _ = convert_2d_to_3d(
+            self.keypoints2d_output_path,
+            self.video_paths,
+            self.version_num,
+            self.cable,
+            self.node_names,
+            registration_config_path,
             conda_env_name=self.conda_env_name,
-            transforms_path=transforms_path,
         )
-        
-    def visualize(self, matplot_viz=True, overlay_viz=True, output_dir=None, filename="merged_keypoints.h5", 
-                  max_frames_matplot=10000, matplot_save_name="matplotlib_render", skeleton_json_path="skeleton.json", alt_key_path=None, **overlay_kwargs):
+
         """
-        Visualizes the 3D keypoints saved in self.keypoints_output_path.
-        
+            Merge keypoints across views...
+        """
+
+        # print("Merging keypoints...")
+        if self.verbose:
+            logger.info("Merging keypoints...")
+
+        intrinsics_matrix, distortion_coeffs = format_intrinsics(
+            toml.load(self.intrinsics_file)
+        )
+        registration_pipeline(
+            registration_config_path,
+            use_data_dir,
+            kpoints_save_dir=os.path.basename(self.keypoints3d_output_path),
+            intrinsics_matrix=intrinsics_matrix,
+            distortion_coefficients=distortion_coeffs,
+            alt_save_dir=self.keypoints3d_output_path,
+            bundle_adjust=self.bundle_adjust,
+            transforms_path=self.transforms_path,
+        )
+
+    def visualize(
+        self,
+        matplot_viz=True,
+        overlay_viz=True,
+        output_dir=None,
+        filename="merged_keypoints.h5",
+        max_frames_matplot=10000,
+        matplot_save_name="matplotlib_render",
+        skeleton_json_path="skeleton.json",
+        alt_key_path=None,
+        **overlay_kwargs,
+    ):
+        """
+        Visualizes the 3D keypoints saved in self.keypoints3d_output_path.
+
         Args:
             matplot_viz (bool): Flag to control whether to render the matplotlib-based visualization.
             overlay_viz (bool): Flag to control whether to render the depth video kepyoint overlay visualization.
@@ -128,10 +169,12 @@ class Trial:
             overlay_kwargs (dict): arguments for depth video keypoint overlay: (`n_frames`, `batch_size`, `raw`,
                                    `cam_by_conf`, `frame_start`, `frame_end`, `render_save_name`)
         """
-        if self.keypoints_output_path is None:
-            raise ValueError("keypoints_output_path must be set before visualization.")
+        if self.keypoints3d_output_path is None:
+            raise ValueError(
+                "keypoints3d_output_path must be set before visualization."
+            )
 
-        kpoints_path = self.keypoints_output_path
+        kpoints_path = self.keypoints3d_output_path
         h5_file = os.path.join(kpoints_path, filename)
 
         if not os.path.exists(h5_file):
@@ -145,7 +188,9 @@ class Trial:
 
         with h5py.File(h5_file, "r") as f:
             if "merged_keypoints_smooth" not in f:
-                raise KeyError("Dataset 'merged_keypoints_smooth' not found in keypoint H5.")
+                raise KeyError(
+                    "Dataset 'merged_keypoints_smooth' not found in keypoint H5."
+                )
             merged_keys = f["merged_keypoints_smooth"][()]
 
         toml_file = os.path.join(kpoints_path, "merged_keypoints.toml")
@@ -171,7 +216,9 @@ class Trial:
 
         if overlay_viz:
             if self.conda_env_name is None:
-                raise ValueError("conda_env_name is required for overlay visualization.")
+                raise ValueError(
+                    "conda_env_name is required for overlay visualization."
+                )
             session_dir = os.path.join(self.base_dir, self.trial_id)
             viz.create_overlay_video(
                 session_dir=session_dir,
@@ -181,13 +228,5 @@ class Trial:
                 conda_env_name=self.conda_env_name,
                 output_path=str(output_dir),
                 keypoint_file=alt_key_path,
-                **overlay_kwargs
+                **overlay_kwargs,
             )
-        
-
-        
-        
-        
-
-
-

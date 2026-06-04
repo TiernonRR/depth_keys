@@ -3,6 +3,7 @@ import click
 import functools
 import os
 
+VERSION_NUM = 1
 
 @click.group()
 def cli():
@@ -55,88 +56,88 @@ def kpoint_params(func):
 # 2. Handle file inputs, have env var options...
 # 3. Write out a batch so that each one can be processed...
 # fmt: off
-@cli.command( name="create-kpoint-batch", context_settings={"show_default": True, "auto_envvar_prefix": "DEPTHKEYS"}, )
-@click.argument("chk_dir", type=click.Path())
-@kpoint_params
-@slurm_params
-def create_kpoint_batch(chk_dir, 
-                        config_path, 
-                        ci_model_path, 
-                        intrinsics_path, 
-                        centroid_model_path, 
-                        transform_path, 
-                        skeleton_path,
-                        node_path,
-                        reference_camera, 
-                        cable, 
-                        compute_2d,
-                        compute_3d,
-                        render,
-                        ncpus, 
-                        memory, 
-                        wall_time, 
-                        qos, 
-                        prefix, 
-                        suffix, 
-                        account, 
-                        ngpus, 
-                        gpu_type, 
-                        constraint):
+# @cli.command( name="create-kpoint-batch", context_settings={"show_default": True, "auto_envvar_prefix": "DEPTHKEYS"}, )
+# @click.argument("chk_dir", type=click.Path())
+# @kpoint_params
+# @slurm_params
+# def create_kpoint_batch(chk_dir, 
+#                         config_path, 
+#                         ci_model_path, 
+#                         intrinsics_path, 
+#                         centroid_model_path, 
+#                         transform_path, 
+#                         skeleton_path,
+#                         node_path,
+#                         reference_camera, 
+#                         cable, 
+#                         compute_2d,
+#                         compute_3d,
+#                         render,
+#                         ncpus, 
+#                         memory, 
+#                         wall_time, 
+#                         qos, 
+#                         prefix, 
+#                         suffix, 
+#                         account, 
+#                         ngpus, 
+#                         gpu_type, 
+#                         constraint):
     
-    command = "depth_keys compute-keypoints {process_dir}"
-    command += f" --config-path {config_path}"
-    command += f" --ci-model-path {ci_model_path}"
-    command += f" --centroid-model-path {centroid_model_path}"
-    command += f" --transform-path {transform_path}"
-    command += f" --skeleton-path {skeleton_path}"
-    command += f" --node-path {node_path}"
-    command += f" --reference-camera {reference_camera}"
+#     command = "depth_keys compute-keypoints {process_dir}"
+#     command += f" --config-path {config_path}"
+#     command += f" --ci-model-path {ci_model_path}"
+#     command += f" --centroid-model-path {centroid_model_path}"
+#     command += f" --transform-path {transform_path}"
+#     command += f" --skeleton-path {skeleton_path}"
+#     command += f" --node-path {node_path}"
+#     command += f" --reference-camera {reference_camera}"
 
-    if cable:
-        command += " --cable"
+#     if cable:
+#         command += " --cable"
 
-    if compute_2d:
-        command += " --compute-2d"
+#     if compute_2d:
+#         command += " --compute-2d"
 
-    if compute_3d:
-        command += " --compute-3d"
+#     if compute_3d:
+#         command += " --compute-3d"
 
-    if render:
-        command += " --render" 
+#     if render:
+#         command += " --render" 
 
-    if prefix is not None:
-        base_command = f"{prefix};"
-    else:
-        base_command = ""
+#     if prefix is not None:
+#         base_command = f"{prefix};"
+#     else:
+#         base_command = ""
 
-    if (gpu_type is not None) and (ngpus > 0):
-        gpu_cmd = f"{gpu_type}:{ngpus}"
-    else:
-        gpu_cmd = f"{ngpus}"
+#     if (gpu_type is not None) and (ngpus > 0):
+#         gpu_cmd = f"{gpu_type}:{ngpus}"
+#     else:
+#         gpu_cmd = f"{ngpus}"
 
-    cluster_prefix = f'sbatch --gpus-per-node={gpu_cmd} --nodes 1 --ntasks-per-node 1 --cpus-per-task {ncpus:d} --mem={memory} -q {qos} -t {wall_time} -A {account} '
+#     cluster_prefix = f'sbatch --gpus-per-node={gpu_cmd} --nodes 1 --ntasks-per-node 1 --cpus-per-task {ncpus:d} --mem={memory} -q {qos} -t {wall_time} -A {account} '
 
-    try:
-        iter(constraint)
-    except TypeError as te:
-        if constraint is not None:
-            constraint = [constraint]
+#     try:
+#         iter(constraint)
+#     except TypeError as te:
+#         if constraint is not None:
+#             constraint = [constraint]
 
-    if constraint is not None:
-        for _constraint in constraint:
-            cluster_prefix += f'--constraint="{_constraint}" '
+#     if constraint is not None:
+#         for _constraint in constraint:
+#             cluster_prefix += f'--constraint="{_constraint}" '
 
-    cluster_prefix += '--wrap "'
+#     cluster_prefix += '--wrap "'
 
-    issue_command = f"{cluster_prefix}{base_command}"
+#     issue_command = f"{cluster_prefix}{base_command}"
     
-    if suffix is not None:
-        run_command = f'{issue_command}{command}{suffix}"'
-    else:
-        run_command = f'{issue_command}{command}"'
+#     if suffix is not None:
+#         run_command = f'{issue_command}{command}{suffix}"'
+#     else:
+#         run_command = f'{issue_command}{command}"'
 
-    if chk_dir is None:
-        chk_dir = os.getcwd() 
+#     if chk_dir is None:
+#         chk_dir = os.getcwd() 
         
     # now walk through directories and ensure we have what we need etc...  
     # will need separate directory checks for 2d 3d, etc.
@@ -149,11 +150,11 @@ def create_kpoint_batch(chk_dir,
 @click.option("--config-path", "-c", type=click.Path(), help="Path to config file", envvar="DEPTHKEYS_CONFIG", show_envvar=True, )
 @click.option("--ci-model-path", "-i", type=click.Path(), help="Path to centered instance model", envvar="DEPTHKEYS_CI_MODEL", show_envvar=True, )
 @click.option("--centroid-model-path", "-m", type=click.Path(), help="Path to centroid model", envvar="DEPTHKEYS_CENTROID_MODEL", show_envvar=True, )
-@click.option("--intrinsics-path", "-t", type=click.Path(), help="Path to camera intrinsics", envvar="DEPTHKEYS_INTRINSICS", show_envvar=True, )
-@click.option("--transform-path", "-t", type=click.Path(), help="Path to average transforms", envvar="DEPTHKEYS_AVG_TRANSFORM", show_envvar=True, )
-@click.option("--skeleton-path", "-t", type=click.Path(), help="Path to sleap json skeleton definition", envvar="DEPTHKEYS_SKELETON", show_envvar=True, )
+@click.option("--intrinsics-path", type=click.Path(), help="Path to camera intrinsics", envvar="DEPTHKEYS_INTRINSICS", show_envvar=True, )
+@click.option("--transform-path", type=click.Path(), help="Path to average transforms", envvar="DEPTHKEYS_AVG_TRANSFORM", show_envvar=True, )
+@click.option("--skeleton-path", type=click.Path(), help="Path to sleap json skeleton definition", envvar="DEPTHKEYS_SKELETON", show_envvar=True, )
 @click.option("--node-path", "-n", type=click.Path(), help="Path to node names", envvar="DEPTHKEYS_NODES", show_envvar=True, )
-@click.option("--reference-camera", "-c", type=str, default="Lucid Vision Labs-HTP003S-001-224500508", envvar="DEPTHKEYS_REFERENCE_CAMERA", show_envvar=True, )
+@click.option("--reference-camera", type=str, default="Lucid Vision Labs-HTP003S-001-224500508", envvar="DEPTHKEYS_REFERENCE_CAMERA", show_envvar=True, )
 @click.option("--cable", is_flag=True, help="Set flag if data contains a cable")
 @click.option("--compute-2d", is_flag=True, help="Process 2d keypoints")
 @click.option("--compute-3d", is_flag=True, help="Process 3d keypoints")
@@ -182,10 +183,10 @@ def compute_keypoints(
     if proc_dir is None:
         proc_dir = os.getcwd()
 
-    node_names = toml.load(node_path)
+    node_names = toml.load(node_path)["nodes"]
     process_directory(
         source_directory=proc_dir,
-        config_path=config_path,
+        registration_config_path=config_path,
         ci_model_path=ci_model_path,
         centroid_model_path=centroid_model_path,
         intrinsics_path=intrinsics_path,
@@ -198,4 +199,5 @@ def compute_keypoints(
         compute_3d=compute_3d,
         render=render,
         force=force,
+        version_num=VERSION_NUM
     )
