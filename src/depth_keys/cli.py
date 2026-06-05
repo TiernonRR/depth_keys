@@ -4,6 +4,8 @@ import click
 import functools
 import os
 import logging
+import shlex
+
 
 VERSION_NUM = 1
 
@@ -57,6 +59,8 @@ def kpoint_params(func):
 
     return wrapper
 
+def shell_join(args):
+    return shlex.join([str(a) for a in args])
 
 # TODO:
 # 1. Check directory for avis...
@@ -64,7 +68,7 @@ def kpoint_params(func):
 # 3. Write out a batch so that each one can be processed...
 # fmt: off
 @cli.command( name="create-kpoint-batch", context_settings={"show_default": True, "auto_envvar_prefix": "DEPTHKEYS"}, )
-@click.argument("chk_dir", type=click.Path())
+@click.option("--chk_dir", type=click.Path(), default=None)
 @click.option("--proc-sub-dir", type=str, default="_proc", help="Location with processed depth videos")
 @click.option("--kpoint-job-file", type=click.Path(), help="Toml file that specifies parameters for keypoint computation (see compute-keypoints for options here)")
 @kpoint_params
@@ -97,9 +101,10 @@ def create_kpoint_batch(chk_dir,
                         constraint):
     
     from depth_keys.proc import check_directory
+    import shlex
     if chk_dir is None:
         chk_dir = os.getcwd()
-    command = "depth_keys compute-keypoints {process_dir}"
+
     param_dct = {
         "--config-path": config_path,
         "--ci-model-path": ci_model_path,
@@ -118,23 +123,26 @@ def create_kpoint_batch(chk_dir,
     if render:
         param_dct["--render"] = None
 
-    for k, v in param_dct.items():
-        if v is not None:
-            command += f" {k} {v}"
-        else:
-            command += f" {k}"
-
-    if prefix is not None:
-        base_command = f"{prefix};"
-    else:
-        base_command = ""
 
     if (gpu_type is not None) and (ngpus > 0):
         gpu_cmd = f"{gpu_type}:{ngpus}"
     else:
         gpu_cmd = f"{ngpus}"
+    
+    # if suffix is None:
+    #     suffix = ""
 
-    cluster_prefix = f'sbatch --gpus-per-node={gpu_cmd} --nodes 1 --ntasks-per-node 1 --cpus-per-task {ncpus:d} --mem={memory} -q {qos} -t {wall_time} -A {account} '
+    cluster_prefix = [
+        "sbatch",
+        "--gpus-per-node", gpu_cmd,
+        "--nodes", "1",
+        "--ntasks-per-node", "1",
+        "--cpus-per-task", ncpus,
+        "--mem", memory,
+        "-q", qos,
+        "-t", wall_time,
+        "-A", account,
+    ]
 
     try:
         iter(constraint)
@@ -144,11 +152,10 @@ def create_kpoint_batch(chk_dir,
 
     if constraint is not None:
         for _constraint in constraint:
-            cluster_prefix += f'--constraint="{_constraint}" '
+            cluster_prefix += ["--constraint", _constraint]
 
-    cluster_prefix += '--wrap "'
-
-
+    cluster_prefix.append("--wrap")
+    
     if chk_dir is None:
         chk_dir = os.getcwd() 
         
@@ -180,16 +187,41 @@ def create_kpoint_batch(chk_dir,
         
         include_dirs.append(_listing)
     
-    for _dir in include_dirs:
-        use_command = command.format(process_dir=_dir)
-        issue_command = f"{cluster_prefix}{base_command}"
-    
-        if suffix is not None:
-            run_command = f'{issue_command}{use_command}{suffix}"'
-        else:
-            run_command = f'{issue_command}{use_command}"'
+    if prefix is not None and prefix[-1] is not ";":
+        prefix += ";"
 
-        print(run_command)
+    for _dir in include_dirs:
+        command = ["depth-keys", "compute-keypoints", _dir]
+        for k, v in param_dct.items():
+            if v is not None:
+                command.append(k)
+                command.append(v)
+                # command += f" {k} {v}"
+            else:
+                command.append(k)
+                # command += f" {k}"
+
+        # use_command = command.format(process_dir=_dir)
+        # wrap_str = shlex.join(map(str, command))
+        wrap_str = shell_join(command)
+        if prefix is not None:
+            wrap_str = prefix + wrap_str
+        # use_list = cluster_prefix + command
+        # print(wrap_str)
+        use_list = cluster_prefix + [wrap_str]
+            # suffix
+        if suffix is not None:
+            use_list.append(suffix)
+        run_command_str = shell_join(use_list)
+        # run_command_str = shlex.join(map(str, use_list))
+        # issue_command = f"{cluster_prefix_str}{base_command}"
+    
+        # if suffix is not None:
+        #     run_command = f'{issue_command}{use_command}{suffix}"'
+        # else:
+        #     run_command = f'{issue_command}{use_command}"'
+
+        print(run_command_str)
         # print(command.format(process_dir=_dir))
          
 
