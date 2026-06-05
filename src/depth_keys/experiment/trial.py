@@ -36,6 +36,7 @@ class Trial:
         transforms_path: str = None,
         verbose: bool = True,
         bundle_adjust: bool = False,
+        logger = None,
         # registration_config_path: str = None,
     ):
         # Essential identifying information
@@ -66,6 +67,11 @@ class Trial:
 
         self.transforms_path = transforms_path
         self.verbose = verbose
+        if logger is None:
+            self.logger = logging.getLogger(__name__)
+        else:
+            self.logger = logger
+ 
 
     def predict_keypoints(self, ci_model_path=None, centroid_model_path=None):
         """Runs inference on videos in video_paths"""
@@ -104,15 +110,13 @@ class Trial:
             )
 
         save_dir = self.keypoints3d_output_path
-        if self.verbose:
-            logger = logging.getLogger(__name__)
 
         for avi in self.video_paths:
-            print(f"-> {avi}")
+            self.logger.info(f"-> {avi}")
 
         # print("Converting 2D keypoints to 3D")
         if self.verbose:
-            logger.info("Converting 2D keypoints to 3D...")
+            self.logger.info("Converting 2D keypoints to 3D...")
 
         _ = convert_2d_to_3d(
             self.keypoints2d_output_path,
@@ -130,7 +134,7 @@ class Trial:
 
         # print("Merging keypoints...")
         if self.verbose:
-            logger.info("Merging keypoints...")
+            self.logger.info("Merging keypoints...")
 
         intrinsics_matrix, distortion_coeffs = format_intrinsics(
             toml.load(self.intrinsics_file)
@@ -184,8 +188,8 @@ class Trial:
         if output_dir is None:
             output_dir = os.path.join(self.base_dir, self.trial_id, "_proc", "renders")
 
-        print(f"Visualizing keypoints from: {h5_file}")
-        print(f"Output target: {output_dir}")
+        self.logger.info(f"Visualizing keypoints from: {h5_file}")
+        self.logger.info(f"Output target: {output_dir}")
 
         with h5py.File(h5_file, "r") as f:
             if "merged_keypoints_smooth" not in f:
@@ -213,13 +217,9 @@ class Trial:
                 max_frames=max_frames_matplot,
                 fps=100,
             )
-            print("Visualization complete.")
+            self.logger.info("Visualization complete.")
 
         if overlay_viz:
-            if self.conda_env_name is None:
-                raise ValueError(
-                    "conda_env_name is required for overlay visualization."
-                )
             session_dir = os.path.join(self.base_dir, self.trial_id)
             viz.create_overlay_video(
                 session_dir=session_dir,
