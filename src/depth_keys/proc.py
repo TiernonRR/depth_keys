@@ -14,17 +14,38 @@ def check_directory(
         version_num: str = 1,
         output_dirs: dict = {},
 ):
+    avis = glob(os.path.join(source_directory, "*.avi"))
+    avis_base = [os.path.splitext(os.path.basename(_avi))[0] for _avi in avis]
     use_output_dirs = DEFAULT_OUTPUT_DIRS | output_dirs
     keypoints2d_output_path = os.path.join(source_directory, use_output_dirs["kpoints_2d"].format(version=version_num))
     keypoints3d_output_path = os.path.join(source_directory, use_output_dirs["kpoints_3d"].format(version=version_num))
     renders_output_path = os.path.join(source_directory, "renders")
     
-    isok = {}
-    isok["2d"] = not os.path.exists(keypoints2d_output_path)
-    isok["3d"] = not os.path.exists(keypoints3d_output_path)
-    isok["render"] = not os.path.exists(renders_output_path)
+    iscomplete = {}
+    exists_2d_output = []
+    for _avi in avis_base:
+        output_file = os.path.join(keypoints2d_output_path, f"{_avi}.slp")
+        output_file2 = os.path.join(keypoints2d_output_path, f"{_avi}.pkl.gz")
+        exists_2d_output.append(os.path.exists(output_file) | os.path.exists(output_file2))
 
-    return isok
+    # print(exists_2d_output)
+    iscomplete["2d"] = all(exists_2d_output)
+     
+    exists_3d_output = []
+    for _avi in avis_base:
+        output_file = os.path.join(keypoints3d_output_path, f"{_avi}.pkl.gz")
+        exists_3d_output.append(os.path.exists(output_file))
+    exists_3d_output.append(os.path.exists(os.path.join(keypoints3d_output_path, "merged_keypoints.h5")))
+    
+    iscomplete["3d"] = all(exists_3d_output)
+    # isok["2d"] = not os.path.exists(keypoints2d_output_path)
+    # isok["3d"] = not os.path.exists(keypoints3d_output_path)
+    # isok["render"] = not os.path.exists(renders_output_path)
+
+    renders_files = [f"keypoints_overlay_v{version_num}.mp4", "matplotlib_render.mp4"]
+    exists_renders_output = [os.path.exists(os.path.join(renders_output_path, _file)) for _file in renders_files]
+    iscomplete["render"] = all(exists_renders_output)    
+    return iscomplete
 
 
 # TODO:

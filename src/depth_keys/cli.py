@@ -122,6 +122,8 @@ def create_kpoint_batch(chk_dir,
         param_dct["--compute-3d"] = None
     if render:
         param_dct["--render"] = None
+    if force:
+        param_dct["--force"] = None
 
 
     if (gpu_type is not None) and (ngpus > 0):
@@ -174,20 +176,34 @@ def create_kpoint_batch(chk_dir,
         if len(avis) == 0:
             continue
         # NOW we perform checks
-        isok = check_directory(subdir, version_num=VERSION_NUM)
+        # TODO:
+        # 1. more explicit checks for 3d and render to ensure data is present and intact
+        iscomplete = check_directory(subdir, version_num=VERSION_NUM)
         # print(_listing)
         # print(isok)
         
-        if ("--compute-2d" in param_dct.keys()) and (not isok["2d"]):
+
+        if ("--compute-2d" in param_dct.keys()) and (iscomplete["2d"]) and (not force):
             continue
-        if ("--compute-3d" in param_dct.keys()) and (not isok["3d"]):
+
+        if ("--compute-3d" in param_dct.keys()) and (iscomplete["3d"]) and (not force):
             continue
-        if ("--render" in param_dct.keys()) and (not isok["render"]):
+
+        # we must have 2d for conversion to 3d!
+        if ("--compute-3d" in param_dct.keys()) and (not "--compute-2d" in param_dct.keys()) and (not iscomplete["2d"]):
             continue
+        
+        if ("--render" in param_dct.keys()) and (not force) and (iscomplete["render"]):
+            continue
+
+        # we must have 3d for rendering
+        if ("--render" in param_dct.keys()) and (not "--compute-3d" in param_dct.keys()) and (not iscomplete["3d"]):
+            continue
+
         
         include_dirs.append(_listing)
     
-    if prefix is not None and prefix[-1] is not ";":
+    if prefix is not None and prefix[-1] != ";":
         prefix += ";"
 
     for _dir in include_dirs:
