@@ -227,6 +227,7 @@ class KeypointVideoProcessor:
             )
         )
 
+        # self.reference_camera = metadata["reference_camera"]
         # Video processing parameters
         self.keypoint_radius = 3
         self.colormap = cm.jet

@@ -272,7 +272,7 @@ def compute_keypoints(
 ):    
     if proc_dir is None:
         proc_dir = os.getcwd()
-
+    proc_dir = os.path.normpath(proc_dir)
     cli_args = locals().copy()
 
     from depth_keys.proc import process_directory

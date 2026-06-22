@@ -189,7 +189,9 @@ def get_3d_kpoints(
         new_save_dir = os.path.join(avi_dir, save_dir)
         
     new_save_file = os.path.join(new_save_dir, f"{cam}.pkl.gz")
-    
+    if os.path.exists(new_save_file):
+        warnings.warn(f"3D keypoints already computed for {avi_file}, skipping...")
+        return None 
     new_metadata_file = os.path.join(new_save_dir, f"{cam}.toml")
     
     os.makedirs(new_save_dir, exist_ok=True)
@@ -202,6 +204,9 @@ def get_3d_kpoints(
         
     metadata_file = os.path.join(avi_dir, kpoint_2d_save_dir, f"{cam}.toml")
     
+    print(kpoint_file)
+    print(metadata_file)
+
     metadata = toml.load(metadata_file)
     new_metadata = copy.deepcopy(metadata)
 
@@ -314,33 +319,36 @@ def convert_2d_to_3d(
         os.makedirs(save_dir, exist_ok=True)
         save_file = os.path.join(save_dir, f"{cam}.pkl.gz")
 
-        sleap_file = os.path.join(kpoint_root_dir, f"{cam}.slp")
-    
-        sleap_dat = sio.load_file(sleap_file)
-        nframes = len(sleap_dat.labeled_frames)
-        new_arr = np.full((nframes, nbody_parts, 3), fill_value=np.nan)
+        if not os.path.exists(save_file):
+            sleap_file = os.path.join(kpoint_root_dir, f"{cam}.slp")
+        
+            sleap_dat = sio.load_file(sleap_file)
+            nframes = len(sleap_dat.labeled_frames)
+            new_arr = np.full((nframes, nbody_parts, 3), fill_value=np.nan)
 
-        for i, _frame in enumerate(sleap_dat.labeled_frames):
+            for i, _frame in enumerate(sleap_dat.labeled_frames):
 
-            if len(_frame.instances) == 0 : 
-                continue
+                if len(_frame.instances) == 0 : 
+                    continue
 
-            points = _frame.instances[0].points
-            _map_instance_points_to_array(points, new_arr[i], body_part_mapping, node_names)
-     
-        # save a toml with relevant stuff...
-        metadata = {}
-        metadata["node_names"] = node_names
-        metadata["node_mapping"] = body_part_mapping
-        metadata["sleap_path"] = sleap_file
-        metadata["avi_path"] = _avi
-        metadata["camera"] = cam
-        metadata["undistorted"] = True # data already undistorted, make sure we know it...
+                points = _frame.instances[0].points
+                _map_instance_points_to_array(points, new_arr[i], body_part_mapping, node_names)
+        
+            # save a toml with relevant stuff...
+            metadata = {}
+            metadata["node_names"] = node_names
+            metadata["node_mapping"] = body_part_mapping
+            metadata["sleap_path"] = sleap_file
+            metadata["avi_path"] = _avi
+            metadata["camera"] = cam
+            metadata["undistorted"] = True # data already undistorted, make sure we know it...
 
-        with open(os.path.join(save_dir, f"{cam}.toml"), "w") as f:
-            toml.dump(metadata, f)
+            with open(os.path.join(save_dir, f"{cam}.toml"), "w") as f:
+                toml.dump(metadata, f)
 
-        joblib.dump(new_arr, save_file)
+            joblib.dump(new_arr, save_file)
+        else:
+            new_arr = joblib.load(save_file)
 
     bilateral_kwargs, replace_height_spikes_kwargs = _load_depth_processing_overrides(
         config_path, cable

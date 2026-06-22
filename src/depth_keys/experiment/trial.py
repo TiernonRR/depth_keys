@@ -202,6 +202,7 @@ class Trial:
 
         kpoints_metadata = toml.load(toml_file)
         node_names = kpoints_metadata["kpoints"]["node_names"]
+        reference_camera = kpoints_metadata["reference_camera"]
 
         with open(skeleton_json_path, "r") as f:
             skeleton_definitions = json.load(f)
@@ -224,7 +225,7 @@ class Trial:
             viz.create_overlay_video(
                 session_dir=session_dir,
                 version_num=self.version_num,
-                reference_camera=self.reference_camera,
+                reference_camera=reference_camera,
                 intrinsics_file=self.intrinsics_file,
                 conda_env_name=self.conda_env_name,
                 output_path=str(output_dir),
