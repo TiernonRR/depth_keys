@@ -1,63 +1,112 @@
-# Python package for the depth rig processing pipeline
+# Install (GT PACE)
 
-This repository provides a depth-video processing pipeline for:
+SSH into a PACE login node:
 
-- 2D keypoint prediction (`depth_keys/prediction`)
-- 2D-to-3D conversion and session post-processing (`depth_keys/post_processing`)
-- visualization and overlay rendering (`depth_keys/visualization`)
+1. First, ensure you have PACE's anaconda module loaded. The latest version (as of 26-07-23) can be loaded via
 
-## Environment requirements
+    ```bash
+    module load anaconda3/2023.03
+    ```
 
-- Python 3.12+
-- `ffmpeg` CLI available through a conda environment used by subprocess calls
-- Package dependencies in `pyproject.toml`
-- environment.yml provided
+2. Next, clone this repository to a convenient directory on PACE (it's advisable to have code in your project storage not home directory)
 
-## Configuration
+    ```bash
+    git clone https://github.com/TiernonRR/depth_keys/tree/cleanup-jm
+    ```
 
-Post-processing depth extraction settings are config-driven. The example configs now include:
+3. Install the depth-keys conda environment, by navigating the cloned repository and running,
 
-- `[post_processing.depth_patch_parameters]` per-node patch radius and aggregation percentile
-- `[post_processing.depth_processing]` non-cable/height-spike settings
-- `[post_processing.depth_processing_cable]` cable/height-spike settings
+    ```bash
+    conda env create -f environment.yml
+    ```
 
-See:
+4. Fire up a bash terminal on a GPU-enabled node in interactive mode. Now, activate the new environment,
 
-- `notebooks/config.toml`
-- `notebooks/config_cable.toml`
+    ```bash
+    module load anaconda3/2023.03
+    conda activate depth-keys
+    ```
 
-## Assumptions
+5. Install the repository by running this in the cloned repo directory,
 
-Assumes that the session directory is of form:
+    ```bash
+    pip install -e .
+    ```
 
-*session_name*
- / - metadata.toml
-   - *cam1*.txt
-   - *cam2*.txt
-   - *cam3*.txt
-   - _bground
-    / - *cam1*.toml
-      - *cam2*.toml
-      - *cam3*.toml
-      - *cam1*.tiff
-      - *cam2*.tiff
-      - *cam3*.tiff
-   - _proc
-    / - timestamps.txt
-      - sync_metadata.toml
-      - *cam1*.avi
-      - *cam2*.avi
-      - *cam3*.avi
+6. To ensure sleap-nn is compatible with this CUDA version install the appropriate intermediate libraries
 
-Assumes that ffmpeg is installed in environment via conda.
+    ```bash
+    pip install torch==2.7.1 torchvision==0.22.1 torchaudio==2.7.1 --index-url https://download.pytorch.org/whl/cu126
+    ```
 
-Assumes the presence of 
+7. Run the following commands to ensure everything is working properly,
 
-## command sequence 
-Refer to _example directory
- - (optional) fill_holes.py -> This script iterates over each frame of the input video and outputs (I output to scratch) a video with any holes in the depth map filled in. 
- - process_session.py -> Obtains SLEAP predictions. Provide session name, project name, version number, camera name, and flag for whether a photometry cable was used in the experiment. Creates output at the project directory under _proc in _keypoints_v{version}
- - post_process.py -> Computes z from the 2d predictions and performs post processing stages. Provide session name, project name, version number, cable flag, and output directory.
- - visualize.py -> This renders keypoint overlay video and 3d matplotlib render of keypoints. Provide session name, project name, version number, and output directory.
+    ```bash
+    markolab-cli --help
+    markovids --help
+    depth-keys --help
+    ```
 
-notebooks dir contains 2026-05-08-run_pipeline.ipynb which demonstrates how to run the processing code on an example session.
+8. Now you will need to set some environment variables to point the code to the right things, add them to bashrc so they're loaded on compute nodes. Replace vim with your editor of choice (e.g. nano)
+
+    ```bash
+    vim ~/.bashrc
+    ```
+
+9. Point the following variables to appropriate places:
+
+    ```
+    # DEFAULT CONFIG, IN THE GITHUB REPO
+    REPO_PATH=<path_to_your_repository>
+    export DEPTHKEYS_CONFIG="${REPO_PATH}/example_configs/default/config.toml"
+    export DEPTHKEYS_SKELETON="${REPO_PATH}/example_configs/default/skeleton.json"
+    export DEPTHKEYS_TRANSFORM="${REPO_PATH}/example_configs/default/avg_transforms.toml"
+    export DEPTHKEYS_NODES="${REPO_PATH}$/example_configs/default/nodes.toml"
+    export DEPTHKEYS_INTRINSICS="<path_to_instrinsics_toml_from_cammy>"
+    export DEPTHKEYS_CENTROID_MODEL="<path_to_centroid_model>"
+    export DEPTHKEYS_CI_MODEL="<path_to_kp_model>"
+    # CAMERA ID, APPENDED BY CAMMY TO RECORDED DATA BY DEFAULT, e.g. Lucid Vision Labs-HTP003S-001-224500508
+    export DEPTHKEYS_REFERENCE_CAMERA="<camera_id>"
+    ```
+
+10. Reload your bash terminal and try running some basic commands.
+
+# Process a directory
+
+1. To process a directory, first convert your raw .dat file to .avi . 
+
+    ```
+    markolab-cli convert-dat-to-avi PATH_TO_DAT_FILE
+    ```
+
+    It is recommended to run without deleting the raw data until you are comfortable with all commands. If you wish to delete the original file after processing.
+
+    ```
+    markolab-cli convert-dat-to-avi --delete PATH_TO_DAT_FILE
+    ```
+
+    Note that the function will validate all data prior to deleting the original .dat file.
+
+2. Once all .dat files have been converted, you can estimate 2d keypoints. Run this command from a GPU-enabled compute node.
+
+    ```
+    depth-keys compute-keypoints --compute-2d DIR_WITH_AVI_FILE
+    ```
+
+3. To convert the 3D keypoints to 3D, you can run the following on any node. 
+
+    ```
+    depth-keys compute-keypoints --compute-3d DIR_WITH_AVI_FILE
+    ```
+  
+4. Finally, to render the output, run...
+
+    ```
+    depth-keys compute-keypoints --render DIR_WITH_AVI_FILE
+    ```
+
+5. Steps can be chained, e.g.,
+
+    ```
+    depth-keys compute-keypoints --compute-2d --compute-3d --render DIR_WITH_AVI_FILE
+    ```
