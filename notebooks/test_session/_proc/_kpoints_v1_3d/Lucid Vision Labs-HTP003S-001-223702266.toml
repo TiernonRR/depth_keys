@@ -1,0 +1,78 @@
+node_names = [ "tail_tip", "tail_middle", "tail_base", "back_bottom", "back_middle_lower", "back_middle_upper", "back_top", "left_ear", "right_ear", "snout", "left_hip", "right_hip", "left_shoulder", "right_shoulder",]
+sleap_path = "/storage/project/r-jmarkowitz30-0/triesenmy3/depth_and_da/depth_keys/notebooks/test_session/_proc/_keypoints_v1/Lucid Vision Labs-HTP003S-001-223702266.slp"
+avi_path = "/storage/project/r-jmarkowitz30-0/triesenmy3/depth_and_da/depth_keys/notebooks/test_session/_proc/Lucid Vision Labs-HTP003S-001-223702266.avi"
+camera = "Lucid Vision Labs-HTP003S-001-223702266"
+undistorted = true
+z_valid_range = [ 1, 200,]
+
+[node_mapping]
+tail_tip = 0
+tail_middle = 1
+tail_base = 2
+back_bottom = 3
+back_middle_lower = 4
+back_middle_upper = 5
+back_top = 6
+left_ear = 7
+right_ear = 8
+snout = 9
+left_hip = 10
+right_hip = 11
+left_shoulder = 12
+right_shoulder = 13
+
+[depth_patch_parameters.tail_tip]
+patch_radius = 7
+agg_func = 95
+
+[depth_patch_parameters.tail_middle]
+patch_radius = 8
+agg_func = 75
+
+[depth_patch_parameters.tail_base]
+patch_radius = 8
+agg_func = 75
+
+[depth_patch_parameters.back_bottom]
+patch_radius = 6
+agg_func = 75
+
+[depth_patch_parameters.back_middle_lower]
+patch_radius = 10
+agg_func = 75
+
+[depth_patch_parameters.back_middle_upper]
+patch_radius = 10
+agg_func = 95
+
+[depth_patch_parameters.back_top]
+patch_radius = 8
+agg_func = 90
+
+[depth_patch_parameters.left_ear]
+patch_radius = 7
+agg_func = 95
+
+[depth_patch_parameters.right_ear]
+patch_radius = 5
+agg_func = 90
+
+[depth_patch_parameters.snout]
+patch_radius = 10
+agg_func = 75
+
+[depth_patch_parameters.left_hip]
+patch_radius = 8
+agg_func = 75
+
+[depth_patch_parameters.right_hip]
+patch_radius = 10
+agg_func = 75
+
+[depth_patch_parameters.left_shoulder]
+patch_radius = 8
+agg_func = 75
+
+[depth_patch_parameters.right_shoulder]
+patch_radius = 10
+agg_func = 75
