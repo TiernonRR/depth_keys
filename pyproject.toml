@@ -19,7 +19,7 @@ dependencies = [
     # Specific versions you requested
     #"sleap-io==0.5.7", # installed with sleap-nn
     "sleap-nn==0.2.0",
-    "markolab-cli @ git+https://github.com/markolab/markolab-cli.git"
+    "markolab-cli @ git+https://github.com/markolab/markolab-cli.git",
     # "markovids @ git+https://github.com/triesenmy3/markovids.git" # incorrect
     # "markovids @ git+https://github.com/TiernonRR/markovids-tr.git@tr_changes
     "markovids @ git+https://github.com/markolab/markovids.git@integrate_tr_changes"
@@ -28,7 +28,8 @@ dependencies = [
 # Optional: Tools for development (install via `pip install .[dev]`)
 [project.optional-dependencies]
 dev = [
-    "ipykernel"
+    "ipykernel",
+    "pytest>=8",
 ]
 
 [project.scripts]

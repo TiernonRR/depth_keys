@@ -50,6 +50,7 @@ def check_directory(
 
 # TODO:
 # 1. more verbose logging of all parameters...
+# 2. Try/Catch when force=False for existing dirs
 def process_directory(
     source_directory,
     registration_config_path,
@@ -117,7 +118,7 @@ def process_directory(
         trial.visualize(
             matplot_viz=True,
             overlay_viz=True,
-            output_dir=renders_output_path,
+            output_dir=renders_output_path, # do we want custome output render dir
             skeleton_json_path=skeleton_path,
             alt_key_path=alt_key_path,
         )

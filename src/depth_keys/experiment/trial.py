@@ -106,7 +106,7 @@ class Trial:
 
         if self.keypoints3d_output_path is None:
             self.keypoints3d_output_path = os.path.join(
-                self.base_dir, self.trial_id, "_proc", f"_kpoints_v{version_num}_3d"
+                self.base_dir, self.trial_id, "_proc", f"_kpoints_v{self.version_num}_3d"
             )
 
         save_dir = self.keypoints3d_output_path
