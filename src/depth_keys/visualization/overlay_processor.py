@@ -26,7 +26,6 @@ from markovids.vid.io import AviReader, format_intrinsics
 
 # Global variables moved to class properties below
 
-
 def inverse_project_world_coordinates(
     xyz, z_scale=1.0, floor_distance=None, cx=319.0, cy=231.0, fx=525.0, fy=525.0
 ):
@@ -186,7 +185,7 @@ class KeypointVideoProcessor:
         output_path: str = None,
         conda_env_name: Optional[str] = None,
         keypoint_file: Optional[str] = None,
-        prepend_args: str = None,
+        prepend_args: str = None, # deprecated
     ):
 
         self.session_dir = session_dir
@@ -330,6 +329,7 @@ class KeypointVideoProcessor:
         print(f"Using {self.n_frames} frames")
         return self.n_frames
 
+    # TODO missing last frame (add + 1), update and run unit tests to see what breaks
     def load_video_batch(self, video_reader, start_frame, end_frame):
         """Load a batch of video frames."""
         print(f"Loading frames {start_frame} to {end_frame}...")

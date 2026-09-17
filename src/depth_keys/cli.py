@@ -67,6 +67,7 @@ def shell_join(args):
 # 2. Handle file inputs, have env var options...
 # 3. Write out a batch so that each one can be processed...
 # fmt: off
+# TODO confirm: if both 2d and 3d requested, 2d is complete but 3d is not, mistakenly skips this dir
 @cli.command( name="create-kpoint-batch", context_settings={"show_default": True, "auto_envvar_prefix": "DEPTHKEYS"}, )
 @click.option("--chk_dir", type=click.Path(), default=None)
 @click.option("--proc-sub-dir", type=str, default="_proc", help="Location with processed depth videos")
