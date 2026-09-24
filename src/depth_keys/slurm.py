@@ -9,6 +9,24 @@ def build_slurm_command(command: str = "",
                         ngpus: int = 0, 
                         gpu_type: str = None, 
                         constraint: str = None):
+    """Build an ``sbatch`` command string that wraps a shell command.
+
+    Args:
+        command: Shell command to run in the submitted job.
+        ncpus: CPUs requested for the job.
+        memory: Slurm memory request, such as ``20GB``.
+        wall_time: Slurm time limit.
+        qos: Slurm quality-of-service name.
+        prefix: Optional shell text placed before ``command``.
+        suffix: Optional shell text appended after ``command``.
+        account: Slurm charge account name.
+        ngpus: Number of GPUs to request.
+        gpu_type: Optional GPU type prepended to the GPU count.
+        constraint: Optional iterable of constraint values to append.
+
+    Returns:
+        An ``sbatch --wrap`` command string.
+    """
     if prefix is not None:
         base_command = f"{prefix};"
     else:

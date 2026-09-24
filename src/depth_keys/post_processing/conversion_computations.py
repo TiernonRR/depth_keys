@@ -13,6 +13,7 @@ from tqdm.auto import tqdm
 
 
 def _to_plain_types(obj):
+    """Recursively copy mappings and sequences into plain Python containers."""
     if isinstance(obj, dict):
         return {k: _to_plain_types(v) for k, v in obj.items()}
     if isinstance(obj, list):
@@ -23,6 +24,11 @@ def _to_plain_types(obj):
 
 
 def _get_resolve_z_config(config, config_path):
+    """Return depth settings from ``resolve_z`` or the legacy section.
+
+    Raises:
+        KeyError: If neither configuration section is a table.
+    """
     resolve_z_cfg = config.get("resolve_z")
     if isinstance(resolve_z_cfg, dict):
         return resolve_z_cfg
@@ -38,6 +44,12 @@ def _get_resolve_z_config(config, config_path):
 
 
 def _load_depth_params(config_path):
+    """Load per-node depth patch settings from a TOML configuration.
+
+    Raises:
+        KeyError: If the required section or parameter table is missing.
+        TypeError: If the parameter table is not a mapping.
+    """
     config = toml.load(config_path)
     resolve_z_cfg = _get_resolve_z_config(config, config_path)
     depth_params = resolve_z_cfg.get("depth_patch_parameters")
@@ -55,6 +67,18 @@ def _load_depth_params(config_path):
 
 
 def _load_depth_processing_overrides(config_path, cable):
+    """Load bilateral and optional spike-filter settings for a video type.
+
+    Args:
+        config_path: Path to the depth-processing TOML configuration.
+        cable: Whether to select the cable-specific processing section.
+
+    Returns:
+        The bilateral-filter arguments and optional spike-filter arguments.
+
+    Raises:
+        KeyError: If the selected section or bilateral settings are missing.
+    """
     config = toml.load(config_path)
     resolve_z_cfg = _get_resolve_z_config(config, config_path)
     variant_key = "depth_processing_cable" if cable else "depth_processing"
@@ -81,6 +105,7 @@ def _load_depth_processing_overrides(config_path, cable):
 
 
 def _normalize_node_name(node_name):
+    """Convert a point name to text, decoding bytes and preserving ``None``."""
     if node_name is None:
         return None
     if isinstance(node_name, bytes):
@@ -89,6 +114,12 @@ def _normalize_node_name(node_name):
 
 
 def _map_instance_points_to_array(points, frame_arr, body_part_mapping, node_names):
+    """Copy one instance's coordinates and scores into a frame array.
+
+    Matches named points to ``body_part_mapping``. Unnamed points may use their
+    position in ``node_names``; unknown names are skipped. Updates ``frame_arr``
+    in place with ``(x, y, score)`` values.
+    """
     for j in range(len(points)):
         point = points[j]
 
@@ -115,14 +146,19 @@ def _map_instance_points_to_array(points, frame_arr, body_part_mapping, node_nam
         frame_arr[point_index][2] = point["score"]
 
 def replace_height_spikes(depth_map, threshold=30, ksize=5, z_scale=4):
-    """
-    Use OpenCV medianBlur to replace height spikes above a threshold with local median.
+    """Replace depth values far from their local median.
+
+    For kernels larger than five, scales the depth map before an 8-bit median
+    filter and scales the median back afterward.
+
     Args:
-        depth_map: 2D array of height values in mm (float32 or float64)
-        threshold: max allowed height difference from local median
-        ksize: kernel size for median blur (must be odd)
+        depth_map: Two-dimensional depth array.
+        threshold: Minimum absolute difference that triggers replacement.
+        ksize: Odd median-filter kernel size.
+        z_scale: Scale factor used for kernels larger than five.
+
     Returns:
-        filtered 2D height map
+        A filtered copy of ``depth_map`` with its original dtype.
     """
     temp = depth_map.copy()
     original_dtype = depth_map.dtype
@@ -153,28 +189,29 @@ def get_3d_kpoints(
     bilateral_kwargs={"d":5, "sigmaColor": 15, "sigmaSpace":3},
     replace_height_spikes_kwargs=None
 ):
-    """
-    Get 3D keypoints from 2d keypoint locations, and save to save_dir under camera name derived from avi_file.
+    """Attach video depth values to 2D keypoints and save camera artifacts.
+
+    Reads the matching 2D keypoint array and metadata beside ``avi_file``.
+    Each valid point receives the configured percentile of a filtered depth
+    patch. Writes ``<camera>.pkl.gz`` containing ``(x, y, z, score)`` values
+    and ``<camera>.toml`` under ``save_dir`` beside the video.
 
     Args:
-    avi_file : str
-        Absolute or relative path to the video file to process.
-    config_path : str
-        Path to the TOML config file containing depth processing parameters.
-    batch_size : int, optional
-        Number of frames to process in each batch (default: 2000).
-    kpoint_2d_save_dir : str, optional
-        Directory name where 2D keypoint files are saved relative to the video (default: "_kpoints_v0_2d").
-    save_dir : str, optional
-        Directory name to save the 3D keypoint files relative to the video (default: "_kpoints_v0_3d").
-    z_valid_range : tuple, optional
-        Minimum and maximum valid Z values in mm (default: (1, 200)).
-    reader_kwargs : dict, optional
-        Additional keyword arguments to pass to the video reader (e.g., for multithreading).
-    bilateral_kwargs : dict, optional
-        Keyword arguments for OpenCV bilateralFilter (default: {"d":5, "sigmaColor": 15, "sigmaSpace":3}).
-    replace_height_spikes_kwargs : dict, optional
-        Keyword arguments for height spike replacement (default: None, which disables spike replacement).   
+        avi_file: Path to the depth video.
+        config_path: TOML file with per-node depth patch settings.
+        batch_size: Number of video frames read per batch.
+        kpoint_2d_save_dir: 2D artifact directory beside the video.
+        save_dir: Destination directory beside the video.
+        z_valid_range: Inclusive range of valid depth values.
+        reader_kwargs: Additional arguments for ``AutoReader``.
+        bilateral_kwargs: Arguments for OpenCV's bilateral filter.
+        replace_height_spikes_kwargs: Optional arguments for spike filtering.
+
+    Returns:
+        ``None`` after writing files, or when output exists or 2D data is empty.
+
+    Raises:
+        KeyError: If a node lacks required depth patch settings.
     """
     if reader_kwargs is None:
         reader_kwargs = {"threads": 2}
@@ -304,6 +341,23 @@ def convert_2d_to_3d(
     config_path,
     conda_env_name=None,
 ):
+    """Convert SLEAP predictions to per-camera 3D keypoint files.
+
+    Creates ``(x, y, score)`` arrays and metadata beside each video, then
+    processes depth for all videos in parallel. Existing 2D arrays are reused.
+
+    Args:
+        kpoint_root_dir: Directory containing camera-named ``.slp`` files.
+        avis: Paths to depth videos, one per camera.
+        version_num: Version included in 2D and 3D output directory names.
+        cable: Whether to use cable-specific depth filtering settings.
+        node_names: Ordered names defining output point positions.
+        config_path: TOML file with depth patch and filtering settings.
+        conda_env_name: Optional environment activated by the video reader.
+
+    Returns:
+        One result per video from the parallel ``get_3d_kpoints`` calls.
+    """
     kpoint_save_dir = f"_kpoints_v{version_num}_2d"
 
     nbody_parts = len(node_names)

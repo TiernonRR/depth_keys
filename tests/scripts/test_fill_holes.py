@@ -11,6 +11,7 @@ import pytest
 
 
 def _load_script():
+    """Import the fill-holes script with temporary Markovids test modules."""
     util = types.ModuleType("markovids.vid.util")
     util.fill_holes = lambda frame, **kwargs: frame
     io = types.ModuleType("markovids.vid.io")
@@ -82,15 +83,21 @@ def test_preprocess_batch_copies_squeezes_and_passes_fill_options(monkeypatch):
 
 
 class _Reader:
+    """Supply predictable depth frames and reader metadata to script tests."""
+
     def __init__(self, nframes):
+        """Configure the fake video length and fixed frame format."""
         self.nframes = nframes
         self.frame_size = (2, 1)
         self.fps = 50
         self.pixel_format = "gray16le"
         self.dtype = np.dtype("<u2")
         self.indices = []
-    def get_file_info(self): pass
+    def get_file_info(self):
+        """Keep the preconfigured metadata unchanged."""
+        pass
     def get_frames(self, indices):
+        """Record requested indices and return blank depth frames."""
         self.indices.append(np.asarray(indices))
         return np.zeros((len(indices), 1, 2), dtype=np.uint16)
 

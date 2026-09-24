@@ -16,6 +16,7 @@ except ModuleNotFoundError as exc:
 
 
 def _touch(path):
+    """Create a test artifact and any missing parent directories."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.touch()
 

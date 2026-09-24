@@ -1,10 +1,4 @@
-"""
-Single-Camera 3D Keypoint Video Processor
-
-This script processes a single camera video with 3D keypoint data and creates
-a video with overlaid keypoints colored by depth (z-value).
-Processes frames in batches to manage memory usage.
-"""
+"""Render depth-colored 3D keypoints over a single camera video."""
 
 import argparse
 import os
@@ -27,19 +21,23 @@ from markovids.vid.io import AviReader, format_intrinsics
 def inverse_project_world_coordinates(
     xyz, z_scale=1.0, floor_distance=None, cx=319.0, cy=231.0, fx=525.0, fy=525.0
 ):
-    """
-    Inverse of project_world_coordinates function.
-    Converts from world coordinates (x, y, z) back to image coordinates with depth (u, v, z).
+    """Project world points to image coordinates with scaled depth.
 
-    Parameters:
-    - xyz: numpy array of shape (N, 3) containing world coordinates (x, y, z)
-    - z_scale: scaling factor for z coordinate
-    - floor_distance: distance to floor (if used in original function)
-    - cx, cy: principal point of the camera
-    - fx, fy: focal lengths in x and y directions
+    Uses ``(floor_distance - z) / z_scale`` as projection depth when a floor
+    distance is provided, or ``z / z_scale`` otherwise. Projection depth is
+    clamped to at least ``1e-10`` before division.
+
+    Args:
+        xyz: Array of ``(x, y, z)`` world coordinates shaped ``(N, 3)``.
+        z_scale: Scale factor applied to output depth.
+        floor_distance: Optional floor distance used in projection depth.
+        cx: Horizontal camera principal point.
+        cy: Vertical camera principal point.
+        fx: Horizontal camera focal length.
+        fy: Vertical camera focal length.
 
     Returns:
-    - uvz: numpy array of shape (N, 3) containing image coordinates with depth (u, v, z)
+        Array shaped ``(N, 3)`` with ``(u, v, z * z_scale)`` values.
     """
     # Extract world coordinates
     x = xyz[:, 0]
@@ -70,9 +68,7 @@ def inverse_project_world_coordinates(
 
 # --- Custom MP4 Writer Class ---
 class MP4Writer:
-    """
-    A custom video writer that uses ffmpeg to write frames directly to an MP4 file.
-    """
+    """Stream BGR video frames to an H.264 MP4 through FFmpeg."""
 
     def __init__(
         self,
@@ -81,6 +77,17 @@ class MP4Writer:
         fps: int,
         prepend_args: str = None,
     ):
+        """Configure the output file, frame dimensions, and FFmpeg command.
+
+        Args:
+            filepath: Destination path ending in ``.mp4``.
+            frame_size: Frame ``(width, height)`` in pixels.
+            fps: Output frame rate.
+            prepend_args: Optional shell text run before FFmpeg.
+
+        Raises:
+            ValueError: If ``filepath`` does not end in ``.mp4``.
+        """
         if os.path.splitext(filepath)[1] != ".mp4":
             raise ValueError("Filepath must have an .mp4 extension")
 
@@ -91,7 +98,14 @@ class MP4Writer:
         self.pipe = None
 
     def open(self):
-        """Opens the ffmpeg subprocess pipe."""
+        """Start FFmpeg with a pipe for raw BGR frames.
+
+        Existing output is overwritten. The output uses H.264 video without
+        audio and a ``yuv420p`` pixel format.
+
+        Raises:
+            ValueError: If ``prepend_args`` contains ``rm`` or ``sudo``.
+        """
         command = [
             "ffmpeg",
             "-y",  # Overwrite output file if it exists
@@ -137,7 +151,16 @@ class MP4Writer:
         )
 
     def write_frames(self, frames: np.ndarray, progress_bar: bool = True):
-        """Writes a batch of frames to the video."""
+        """Write a batch of frames to FFmpeg, opening the pipe if needed.
+
+        Args:
+            frames: Array of BGR frames matching the configured frame size.
+                Frames are converted to unsigned 8-bit bytes for the pipe.
+            progress_bar: Whether to show a progress bar over the frames.
+
+        Raises:
+            BrokenPipeError: If FFmpeg closes its input while writing.
+        """
         if self.pipe is None:
             self.open()
 
@@ -154,7 +177,7 @@ class MP4Writer:
                 raise
 
     def close(self):
-        """Closes the ffmpeg pipe."""
+        """Close FFmpeg's input, wait for it to exit, and print any errors."""
         if self.pipe and self.pipe.stdin:
             self.pipe.stdin.close()
             self.pipe.wait()
@@ -165,7 +188,7 @@ class MP4Writer:
 
 
 class KeypointVideoProcessor:
-    """Processes a single camera video with 3D keypoint overlays."""
+    """Project merged 3D keypoints and draw depth-colored video overlays."""
 
     def __init__(
         self,
@@ -185,6 +208,28 @@ class KeypointVideoProcessor:
         keypoint_file: Optional[str] = None,
         prepend_args: str = None, # deprecated
     ):
+        """Set rendering options and load camera metadata for a session.
+
+        Args:
+            session_dir: Session directory containing ``_proc`` artifacts.
+            version_num: Version used in merged keypoint paths and output names.
+            reference_camera: Camera name used to find the AVI and intrinsics.
+            intrinsics_file: Camera intrinsics TOML path.
+            n_frames: Optional maximum number of frames to process.
+            batch_size: Number of video frames read in each batch.
+            raw: Whether to use raw rather than smoothed merged keypoints.
+            render_save_name: Optional output MP4 filename stem.
+            frame_start: Optional inclusive first frame to render.
+            frame_end: Optional exclusive final frame to render.
+            cam_by_conf: Whether to label frames by highest mean confidence.
+            output_path: Output directory; defaults to ``_proc/renders``.
+            conda_env_name: Stored environment name; not used by this class.
+            keypoint_file: Optional HDF5 file overriding the default keypoints.
+            prepend_args: Deprecated argument; not used by this class.
+
+        Raises:
+            FileNotFoundError: If ``keypoint_file`` is set but absent.
+        """
 
         self.session_dir = session_dir
         self.video_dir = os.path.join(session_dir, "_proc")
@@ -242,7 +287,18 @@ class KeypointVideoProcessor:
         os.makedirs(self.output_dir, exist_ok=True)
 
     def load_keypoints(self):
-        """Load 3D keypoint data for the camera."""
+        """Load merged keypoints and project them into the reference camera.
+
+        Reads the raw or smoothed HDF5 dataset according to ``self.raw`` and
+        optionally loads projection confidence into ``self.conf``.
+
+        Returns:
+            Array shaped ``(frames, nodes, 3)`` containing image ``(u, v)``
+            coordinates and depth.
+
+        Raises:
+            FileNotFoundError: If the selected HDF5 file does not exist.
+        """
         keypoint_file = self.keypoint_file
         if keypoint_file is None:
             keypoint_file = os.path.join(
@@ -293,7 +349,11 @@ class KeypointVideoProcessor:
         return keypoints
 
     def get_video_path(self):
-        """Get path to the video file."""
+        """Find the reference camera AVI in the session's ``_proc`` directory.
+
+        Returns:
+            Video path if it exists, otherwise ``None``.
+        """
         # Use self.reference_camera
         video_path = os.path.join(
             self.session_dir, "_proc", f"{self.reference_camera}.avi"
@@ -306,7 +366,18 @@ class KeypointVideoProcessor:
             return None
 
     def determine_video_length(self, video_reader, keypoints):
-        """Determine the minimum video length between video and keypoints."""
+        """Limit rendering to frames shared by the video and keypoints.
+
+        Updates ``self.n_frames`` to the shared length or a smaller configured
+        limit.
+
+        Args:
+            video_reader: Video reader exposing ``nframes``, or ``None``.
+            keypoints: Keypoint array with a leading frame dimension.
+
+        Returns:
+            The selected number of frames, or zero for a missing reader.
+        """
         if video_reader is None:
             return 0
 
@@ -329,7 +400,19 @@ class KeypointVideoProcessor:
 
     # TODO missing last frame (add + 1), update and run unit tests to see what breaks
     def load_video_batch(self, video_reader, start_frame, end_frame):
-        """Load a batch of video frames."""
+        """Read frames in the half-open interval ``[start_frame, end_frame)``.
+
+        The end index is capped at the video length.
+
+        Args:
+            video_reader: Reader providing frames and ``(width, height)``.
+            start_frame: Inclusive first frame index.
+            end_frame: Exclusive final frame index.
+
+        Returns:
+            ``(frames, (height, width))`` when frames are available, otherwise
+            ``(None, None)``.
+        """
         print(f"Loading frames {start_frame} to {end_frame}...")
 
         frames = video_reader.get_frames(
@@ -347,7 +430,14 @@ class KeypointVideoProcessor:
             return None, None
 
     def calculate_z_range(self, keypoints):
-        """Calculate min and max z-values for consistent coloring."""
+        """Find the range of non-NaN depths within the selected frames.
+
+        Args:
+            keypoints: Array shaped ``(frames, nodes, 3)`` with depth last.
+
+        Returns:
+            ``(min_z, max_z)``, or ``(0, 1)`` when no usable depth exists.
+        """
         # Ensure we don't go out of bounds
         max_frames = min(self.n_frames, keypoints.shape[0])
         z_values = keypoints[:max_frames, :, 2]
@@ -363,7 +453,21 @@ class KeypointVideoProcessor:
             return 0, 1  # Default range
 
     def draw_keypoints_on_frame(self, frame, frame_keypoints, normalizer, conf=None):
-        """Draw colored keypoints on a single frame."""
+        """Draw visible keypoints and a camera label on a copy of a frame.
+
+        Skips NaN or out-of-bounds points and converts grayscale input
+        to BGR. The label uses the reference camera unless confidence-based
+        camera selection is enabled and ``conf`` is supplied.
+
+        Args:
+            frame: Grayscale or BGR image array.
+            frame_keypoints: Per-node ``(u, v, depth)`` values.
+            normalizer: Callable mapping depth values into the colormap range.
+            conf: Optional per-camera confidence values for this frame.
+
+        Returns:
+            BGR frame with colored keypoints and a camera label.
+        """
         # Convert grayscale to BGR if needed
         if len(frame.shape) == 2:
             frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
@@ -434,7 +538,16 @@ class KeypointVideoProcessor:
         return frame_with_keypoints
 
     def add_colorbar_to_frame(self, frame, min_z, max_z):
-        """Add a vertical colorbar to the right of the frame."""
+        """Draw a depth colorbar and its bounds onto a frame in place.
+
+        Args:
+            frame: BGR image array to modify.
+            min_z: Depth label at the bottom of the colorbar.
+            max_z: Depth label at the top of the colorbar.
+
+        Returns:
+            The same frame array with the colorbar added.
+        """
         height, width = frame.shape[:2]
 
         # Colorbar dimensions and position
@@ -485,7 +598,17 @@ class KeypointVideoProcessor:
     def process_frame_batch(
         self, frames, keypoints, start_idx, end_idx, min_z, max_z, video_writer
     ):
-        """Process a batch of frames and write to video."""
+        """Overlay keypoints on a batch and write the rendered frames.
+
+        Args:
+            frames: Video frames beginning at ``start_idx``.
+            keypoints: Projected keypoints indexed by absolute frame number.
+            start_idx: Absolute index of the first frame in ``frames``.
+            end_idx: Exclusive batch end, used in progress messages.
+            min_z: Lower depth bound for color normalization.
+            max_z: Upper depth bound for color normalization.
+            video_writer: Writer receiving the rendered frame array.
+        """
         if frames is None or len(frames) == 0:
             print(f"Warning: No frames to process in batch {start_idx}-{end_idx}")
             return
@@ -531,7 +654,15 @@ class KeypointVideoProcessor:
             )
 
     def create_video(self, keypoints, min_z, max_z, frame_size, video_reader):
-        """Create the video with keypoint overlays."""
+        """Render selected video frames to a camera-overlay MP4.
+
+        Args:
+            keypoints: Projected keypoints indexed by absolute frame number.
+            min_z: Lower depth bound for color normalization.
+            max_z: Upper depth bound for color normalization.
+            frame_size: Frame ``(height, width)`` in pixels.
+            video_reader: Reader used to fetch frame batches.
+        """
         print("Creating video with keypoint overlays...")
 
         if self.save_name:
@@ -586,7 +717,16 @@ class KeypointVideoProcessor:
         writer.close()
 
     def process(self):
-        """Main processing pipeline."""
+        """Load keypoints and video, then render the selected frame range.
+
+        Clamps an explicit frame range to available data and closes the video
+        reader on exit. Returns without rendering when the video or its first
+        frame cannot be read.
+
+        Raises:
+            ValueError: If only one frame bound is provided or the clamped
+                range is empty.
+        """
         print(f"Processing session: {os.path.basename(self.session_dir)}")
 
         keypoints = self.load_keypoints()

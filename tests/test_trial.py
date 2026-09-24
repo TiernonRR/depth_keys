@@ -56,6 +56,7 @@ def test_predict_keypoints_honors_custom_output_and_empty_input(tmp_path, monkey
 
 
 def _install_markovids_fakes(monkeypatch):
+    """Install fake Markovids modules used by registration tests."""
     format_intrinsics = lambda data: ("K", "D")
     registration = lambda *args, **kwargs: None
     io_module = types.ModuleType("markovids.vid.io")
@@ -128,6 +129,7 @@ def test_compute_3d_keypoints_default_output_path_regression(tmp_path, monkeypat
 
 
 def _visualization_fixture(tmp_path):
+    """Create merged keypoints, metadata, and a skeleton for render tests."""
     out = tmp_path / "3d"
     out.mkdir()
     with h5py.File(out / "merged_keypoints.h5", "w") as h5:

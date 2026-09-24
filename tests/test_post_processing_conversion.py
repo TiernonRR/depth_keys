@@ -58,6 +58,7 @@ def write_config(path: Path, *, legacy: bool = False, include_cable: bool = True
 
 
 def dump_toml(value, path: Path) -> Path:
+    """Write a TOML value to a test file and return its path."""
     with path.open("w") as stream:
         toml.dump(value, stream)
     return path
@@ -65,6 +66,7 @@ def dump_toml(value, path: Path) -> Path:
 
 def write_2d_artifacts(root: Path, cam: str, kpoints: np.ndarray,
                        node_names: list[str]) -> tuple[Path, Path]:
+    """Create camera-named 2D keypoint and metadata files for a test."""
     directory = root / "_kpoints_v0_2d"
     directory.mkdir(parents=True, exist_ok=True)
     kpoint_file = directory / f"{cam}.pkl.gz"
@@ -75,7 +77,10 @@ def write_2d_artifacts(root: Path, cam: str, kpoints: np.ndarray,
 
 
 class FakeReader:
+    """Return supplied depth frames while recording reads and closure."""
+
     def __init__(self, frames: np.ndarray, *, frame_size=None):
+        """Store frames and optional ``(width, height)`` metadata."""
         self.frames = frames
         self.nframes = len(frames)
         self.frame_size = frame_size or (frames.shape[2], frames.shape[1])
@@ -83,11 +88,13 @@ class FakeReader:
         self.closed = False
 
     def get_frames(self, frame_range):
+        """Return requested frames and record their indices."""
         indexes = list(frame_range)
         self.ranges.append(indexes)
         return self.frames[indexes]
 
     def close(self):
+        """Mark the fake reader as closed."""
         self.closed = True
 
 
