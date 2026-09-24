@@ -16,7 +16,6 @@ dependencies = [
     "toml",
     "click",
     
-    # Specific versions you requested
     #"sleap-io==0.5.7", # installed with sleap-nn
     "sleap-nn==0.2.0",
     "markolab-cli @ git+https://github.com/markolab/markolab-cli.git",

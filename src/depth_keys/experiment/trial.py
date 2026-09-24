@@ -20,7 +20,7 @@ class Trial:
     def __init__(
         self,
         trial_id: str,  # associated with session
-        video_paths: List[str],  # Changed from List[Video] to List[str]
+        video_paths: List[str],
         version_num: int = 1,
         base_dir: str = None,
         metadata: Dict[str, Any] = None,

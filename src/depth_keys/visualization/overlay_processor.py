@@ -24,8 +24,6 @@ import tifffile
 from markovids import depth
 from markovids.vid.io import AviReader, format_intrinsics
 
-# Global variables moved to class properties below
-
 def inverse_project_world_coordinates(
     xyz, z_scale=1.0, floor_distance=None, cx=319.0, cy=231.0, fx=525.0, fy=525.0
 ):
@@ -64,7 +62,7 @@ def inverse_project_world_coordinates(
     u = ((x * fx) / project_z) + cx
     v = ((y * fy) / project_z) + cy
 
-    # Stack the results - output depth is scaled_z as you noted
+    # Stack the results
     uvz = np.hstack([u[:, None], v[:, None], scaled_z[:, None]])
 
     return uvz
@@ -498,23 +496,19 @@ class KeypointVideoProcessor:
         for rel_frame_idx, frame in enumerate(frames):
             frame_idx = start_idx + rel_frame_idx
 
-            # Skip if frame index is out of bounds of keypoint data
             if frame_idx >= keypoints.shape[0]:
                 print(
                     f"Warning: Frame index {frame_idx} exceeds keypoint data length {keypoints.shape[0]}"
                 )
                 continue
 
-            # Get keypoints for this frame
             frame_keypoints = keypoints[frame_idx]
 
-            # Draw keypoints on the frame
             _conf = None if self.conf is None else self.conf[:, frame_idx]
             frame_with_keypoints = self.draw_keypoints_on_frame(
                 frame, frame_keypoints, normalizer, _conf
             )
 
-            # Add colorbar and frame counter
             frame_with_keypoints = self.add_colorbar_to_frame(
                 frame_with_keypoints, min_z, max_z
             )
@@ -530,7 +524,6 @@ class KeypointVideoProcessor:
 
             batch_frames.append(frame_with_keypoints)
 
-        # Write the batch to video
         if batch_frames:
             video_writer.write_frames(np.array(batch_frames), progress_bar=False)
             print(
@@ -554,7 +547,6 @@ class KeypointVideoProcessor:
                 )
         print(f"Output video will be saved to: {output_path}")
 
-        # Use the actual frame size from the video
         writer = MP4Writer(
             output_path,
             frame_size=(frame_size[1], frame_size[0]),  # (width, height) for ffmpeg
@@ -562,7 +554,6 @@ class KeypointVideoProcessor:
             prepend_args=self.prepend_args,
         )
 
-        # try:
         writer.open()
 
         if self.frame_start is None:
@@ -572,10 +563,8 @@ class KeypointVideoProcessor:
                     f"Processing batch {start_idx}-{end_idx} of {self.n_frames} frames..."
                 )
 
-                # Load batch of frames
                 frames, _ = self.load_video_batch(video_reader, start_idx, end_idx)
 
-                # Process batch
                 self.process_frame_batch(
                     frames, keypoints, start_idx, end_idx, min_z, max_z, writer
                 )
@@ -586,10 +575,8 @@ class KeypointVideoProcessor:
                     f"Processing batch {start_idx}-{end_idx} of {self.frame_end - self.frame_start} frames..."
                 )
 
-                # Load batch of frames
                 frames, _ = self.load_video_batch(video_reader, start_idx, end_idx)
 
-                # Process batch
                 self.process_frame_batch(
                     frames, keypoints, start_idx, end_idx, min_z, max_z, writer
                 )
@@ -602,10 +589,8 @@ class KeypointVideoProcessor:
         """Main processing pipeline."""
         print(f"Processing session: {os.path.basename(self.session_dir)}")
 
-        # Load keypoints
         keypoints = self.load_keypoints()
 
-        # Get video path
         video_path = self.get_video_path()
         if video_path is None:
             print("Error: Could not find video file. Aborting.")
@@ -615,7 +600,6 @@ class KeypointVideoProcessor:
         video_reader.get_file_info()
 
         try:
-            # Determine video length
             self.determine_video_length(video_reader, keypoints)
 
             if self.frame_start is not None and self.frame_end is None:
@@ -630,16 +614,13 @@ class KeypointVideoProcessor:
                         "frame_start must be less than frame_end after clamping."
                     )
 
-            # Calculate z-range for colormap
             min_z, max_z = self.calculate_z_range(keypoints)
 
-            # Load a single frame to get dimensions
             first_frames, frame_size = self.load_video_batch(video_reader, 0, 1)
             if frame_size is None:
                 print("Error: Could not determine frame size. Aborting.")
                 return
 
-            # Create video with keypoint overlays
             self.create_video(keypoints, min_z, max_z, frame_size, video_reader)
 
             print("Processing complete!")
