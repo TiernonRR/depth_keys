@@ -304,7 +304,7 @@ def test_get_3d_kpoints_skips_existing_output(tmp_path, monkeypatch):
     config = write_config(tmp_path / "config.toml", depth_params={})
     monkeypatch.setattr(cc.vid.io, "AutoReader", Mock(side_effect=AssertionError("reader should not be opened"))) # TODO need to think of better handling, what if someone wants to regen (e.g. force=True)
     with pytest.warns(UserWarning, match="already computed"):
-        assert cc.get_3d_kpoints(str(avi), str(config), new_save_dir=str(output_dir)) is None
+        assert cc.get_3d_kpoints(str(avi), str(config), save_dir="out") is None
 
 
 def test_get_3d_kpoints_reports_missing_node_configuration(tmp_path, monkeypatch):
