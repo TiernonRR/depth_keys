@@ -40,7 +40,6 @@ def get_skeleton_edges(skeleton_def, node_names):
 def inverse_project_3d_to_2d(points_3d, cx, cy, fx, fy):
     """
     Projects 3D points back to 2D pixel coordinates.
-    Implementation of the logic previously called as 'inverse_project_world_coordinates'.
     
     Args:
         points_3d: (N, 3) or (Frames, K, 3) array of X, Y, Z coordinates.

@@ -39,8 +39,6 @@ def create_overlay_video(session_dir, version_num,
         (e.g., n_frames, batch_size, raw, save_name, frame_start, frame_end, cam_by_conf, output_path).
     """
     
-    # 1. Initialize the processor
-    # We pass the explicit args and expand any remaining kwargs
 
     video_processor = KeypointVideoProcessor(
         session_dir=session_dir,
