@@ -151,8 +151,7 @@ def get_3d_kpoints(
     z_valid_range = (1,200),
     reader_kwargs=None,
     bilateral_kwargs={"d":5, "sigmaColor": 15, "sigmaSpace":3},
-    replace_height_spikes_kwargs=None,
-    new_save_dir = None
+    replace_height_spikes_kwargs=None
 ):
     """
     Get 3D keypoints from 2d keypoint locations, and save to save_dir under camera name derived from avi_file.
@@ -185,8 +184,7 @@ def get_3d_kpoints(
     avi_dir = os.path.dirname(avi_file)
     cam = os.path.splitext(os.path.basename(avi_file))[0]
     
-    if new_save_dir is None:
-        new_save_dir = os.path.join(avi_dir, save_dir)
+    new_save_dir = os.path.join(avi_dir, save_dir)
         
     new_save_file = os.path.join(new_save_dir, f"{cam}.pkl.gz")
     if os.path.exists(new_save_file):
