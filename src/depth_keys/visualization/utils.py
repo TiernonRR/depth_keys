@@ -1,7 +1,4 @@
-"""
-utils.py
-Helper functions for loading modules, processing intrinsics, and handling paths.
-"""
+"""Helpers for loading modules and projecting keypoints for visualization."""
 import sys
 import importlib.util
 import re
@@ -10,8 +7,17 @@ import toml
 from pathlib import Path
 
 def load_external_module(file_path, module_name="keypoint_processor"):
-    """
-    Dynamically loads a python module from a specific file path.
+    """Load a Python module from a file and register it in ``sys.modules``.
+
+    Args:
+        file_path: Path to the Python source file.
+        module_name: Name assigned to the loaded module.
+
+    Returns:
+        The loaded module object.
+
+    Raises:
+        FileNotFoundError: If ``file_path`` does not exist.
     """
     path_obj = Path(file_path)
     if not path_obj.exists():
@@ -24,8 +30,17 @@ def load_external_module(file_path, module_name="keypoint_processor"):
     return module
 
 def get_skeleton_edges(skeleton_def, node_names):
-    """
-    Converts string-based skeleton definitions to index-based edges.
+    """Map skeleton node-name pairs to index pairs.
+
+    Edges referencing names absent from ``node_names`` are skipped with a
+    warning printed to standard output.
+
+    Args:
+        skeleton_def: Iterable of pairs of node names.
+        node_names: Ordered node names corresponding to keypoint indices.
+
+    Returns:
+        List of ``(start_index, end_index)`` edges.
     """
     edges = []
     for bone in skeleton_def:
@@ -38,11 +53,20 @@ def get_skeleton_edges(skeleton_def, node_names):
     return edges
 
 def inverse_project_3d_to_2d(points_3d, cx, cy, fx, fy):
-    """
-    Projects 3D points back to 2D pixel coordinates.
-    
+    """Project 3D camera coordinates into 2D pixel coordinates.
+
+    Zero depth values are replaced with ``1e-6`` for division. The output
+    preserves every input dimension except the final coordinate dimension.
+
     Args:
-        points_3d: (N, 3) or (Frames, K, 3) array of X, Y, Z coordinates.
+        points_3d: Array ending in ``(x, y, z)`` coordinates.
+        cx: Horizontal principal point in pixels.
+        cy: Vertical principal point in pixels.
+        fx: Horizontal focal length in pixels.
+        fy: Vertical focal length in pixels.
+
+    Returns:
+        Array ending in ``(u, v)`` pixel coordinates.
     """
     # Assuming points are (X, Y, Z) and we project to (u, v)
     # u = fx * (x / z) + cx

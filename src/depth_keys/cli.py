@@ -11,6 +11,7 @@ VERSION_NUM = 1
 
 @click.group()
 def cli():
+    """Group commands for keypoint processing and Slurm batch generation."""
     pass
 
 
@@ -18,6 +19,7 @@ def cli():
 # add code for applying sleap inference and conversion to 3d via
 # command line
 def slurm_params(func):
+    """Add Slurm resource and command-wrapper options to a Click command."""
     # fmt: off
     @click.option( "--ncpus", "-n", type=int, default=2, help="Number of CPUs", envvar="DEPTHKEYS_SLURM_NCPUS", show_envvar=True, )
     @click.option( "--memory", "-m", type=str, default="10GB", help="RAM string", envvar="DEPTHKEYS_SLURM_MEM", show_envvar=True, )
@@ -32,12 +34,14 @@ def slurm_params(func):
     @functools.wraps(func)
     # fmt: on
     def wrapper(*args, **kwargs):
+        """Forward the Click options and arguments to the wrapped command."""
         return func(*args, **kwargs)
     
     return wrapper
 
 
 def kpoint_params(func):
+    """Add model, camera, processing-stage, and output options to a command."""
     # fmt: off
     @click.option("--config-path", type=click.Path(), help="Path to config file", envvar="DEPTHKEYS_CONFIG", show_envvar=True, )
     @click.option("--ci-model-path", type=click.Path(), help="Path to centered instance model", envvar="DEPTHKEYS_CI_MODEL", show_envvar=True, )
@@ -55,11 +59,13 @@ def kpoint_params(func):
     @functools.wraps(func)
     # fmt: on
     def wrapper(*args, **kwargs):
+        """Forward the Click options and arguments to the wrapped command."""
         return func(*args, **kwargs)
 
     return wrapper
 
 def shell_join(args):
+    """Quote and join command arguments for display as a shell command."""
     return shlex.join([str(a) for a in args])
 
 # TODO:
@@ -100,6 +106,40 @@ def create_kpoint_batch(chk_dir,
                         ngpus, 
                         gpu_type, 
                         constraint):
+    """Print Slurm commands for session directories needing keypoint work.
+
+    Scans subdirectories of ``chk_dir`` for processed AVI files, checks their
+    existing artifacts, and prints one ``sbatch`` command per selected session.
+    This command does not submit the jobs.
+
+    Args:
+        chk_dir: Parent directory containing session directories.
+        config_path: Registration and depth-processing TOML path.
+        kpoint_job_file: Accepted job-file path; currently unused.
+        proc_sub_dir: Processed-video subdirectory within each session.
+        ci_model_path: Centered-instance model path.
+        centroid_model_path: Centroid model path.
+        intrinsics_path: Accepted intrinsics path; currently not forwarded.
+        transform_path: Optional registration transforms path.
+        skeleton_path: Skeleton JSON path for rendering.
+        node_path: TOML file containing ordered node names.
+        reference_camera: Reference camera identifier.
+        cable: Whether sessions contain a cable.
+        compute_2d: Whether to request 2D inference.
+        compute_3d: Whether to request 3D conversion.
+        render: Whether to request visualizations.
+        force: Whether to process sessions with existing outputs.
+        ncpus: CPUs requested from Slurm.
+        memory: Slurm memory request.
+        wall_time: Slurm time limit.
+        qos: Slurm quality-of-service name.
+        prefix: Optional shell text before the wrapped command.
+        suffix: Optional text appended to the generated Slurm arguments.
+        account: Slurm account name.
+        ngpus: Number of requested GPUs.
+        gpu_type: Optional GPU type.
+        constraint: Optional Slurm constraints.
+    """
     
     from depth_keys.proc import check_directory
     import shlex
@@ -271,6 +311,27 @@ def compute_keypoints(
     render,
     force,
 ):    
+    """Run selected processing stages for one session directory.
+
+    Loads ordered node names from ``node_path`` and passes model, camera,
+    registration, and rendering options to ``process_directory``.
+
+    Args:
+        proc_dir: Session directory to process.
+        config_path: Depth-processing and registration TOML path.
+        ci_model_path: Centered-instance model path.
+        centroid_model_path: Centroid model path.
+        intrinsics_path: Camera intrinsics TOML path.
+        transform_path: Optional registration transforms path.
+        skeleton_path: Skeleton JSON path for rendering.
+        node_path: TOML file whose ``nodes`` key lists keypoint names.
+        reference_camera: Reference camera identifier.
+        cable: Whether the session contains a cable.
+        compute_2d: Whether to run SLEAP inference.
+        compute_3d: Whether to convert and register keypoints.
+        render: Whether to render keypoint videos.
+        force: Whether existing output directories may be reused.
+    """
     if proc_dir is None:
         proc_dir = os.getcwd()
     proc_dir = os.path.normpath(proc_dir)

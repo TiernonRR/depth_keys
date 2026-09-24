@@ -12,9 +12,11 @@ from depth_keys.kpoints.predict import run_inference_on_video
 
 
 class Trial:
-    """
-    Represents a single run or observation within an experiment.
-    Acts as interface with file paths needed for inference, post processing, and visualization.
+    """Manage keypoint inference, 3D conversion, and visualization for one trial.
+
+    A trial groups its camera videos with the paths and settings used by each
+    processing stage. The stages run only when their corresponding methods are
+    called.
     """
 
     def __init__(
@@ -28,7 +30,6 @@ class Trial:
         video_extension: str = ".avi",
         keypoints2d_output_path: str = None,
         keypoints3d_output_path: str = None,
-        viz_output_dir: str = None,
         reference_camera: str = None,
         intrinsics_file: str = None,
         cable: bool = False,
@@ -39,6 +40,32 @@ class Trial:
         logger = None,
         # registration_config_path: str = None,
     ):
+        """Store the inputs and output locations for a trial.
+
+        Args:
+            trial_id: Trial identifier, joined to ``base_dir`` for 3D and
+                visualization paths.
+            video_paths: Paths to the camera videos to process.
+            version_num: Version used in default keypoint output directory names.
+            base_dir: Parent directory of the trial directory.
+            metadata: Trial metadata. Defaults to an empty dictionary.
+            node_names: Ordered keypoint names used during 2D-to-3D conversion.
+            video_extension: Stored video filename extension.
+            keypoints2d_output_path: Directory for SLEAP ``.slp`` predictions.
+                If omitted, inference uses ``./_keypoints_v{version_num}_2d``.
+            keypoints3d_output_path: Directory for converted and merged 3D
+                keypoints. If omitted, conversion places it under the trial's
+                ``_proc`` directory in subdir ``_kpoints_v{self.version_num}_3d``.
+            reference_camera: Stored reference camera identifier.
+            intrinsics_file: Path to the camera intrinsics TOML file.
+            cable: Whether to use cable-specific depth processing settings.
+            conda_env_name: Optional environment name passed to conversion and
+                overlay rendering.
+            transforms_path: Optional transforms passed to registration.
+            verbose: Whether to log conversion and merging progress.
+            bundle_adjust: Whether registration performs bundle adjustment.
+            logger: Logger to use; defaults to this module's logger.
+        """
         # Essential identifying information
         self.trial_id: str = trial_id
         # self.registration_config_path = registration_config_path
@@ -54,7 +81,6 @@ class Trial:
 
         self.keypoints2d_output_path = keypoints2d_output_path
         self.keypoints3d_output_path = keypoints3d_output_path
-        self.viz_output_dir = viz_output_dir
         self.base_dir = base_dir
         self.version_num = version_num
         self.bundle_adjust = bundle_adjust
@@ -74,7 +100,17 @@ class Trial:
  
 
     def predict_keypoints(self, ci_model_path=None, centroid_model_path=None):
-        """Runs inference on videos in video_paths"""
+        """Write SLEAP predictions for each video in ``video_paths``.
+
+        Creates ``keypoints2d_output_path`` if needed and writes one ``.slp``
+        file per video, named after the video's filename stem.
+
+        Args:
+            ci_model_path: Centered-instance model directory. When omitted,
+                the inference function uses its default model.
+            centroid_model_path: Centroid model directory. When omitted, the
+                inference function uses its default model.
+        """
 
         if self.keypoints2d_output_path is None:
             self.keypoints2d_output_path = f"./_keypoints_v{self.version_num}_2d"
@@ -95,26 +131,30 @@ class Trial:
             )
 
     def compute_3d_keypoints(self, registration_config_path):
-        """Compute 3d keypoints from 2d SLEAP predictions."""
+        """Convert 2D predictions to depth keypoints and register camera views.
+
+        Uses the trial's videos, node names, intrinsics, and conversion settings.
+        If no 3D output directory was provided, sets it to
+        ``base_dir/trial_id/_proc/_kpoints_v{version_num}_3d``. Registration
+        writes merged keypoints to that directory.
+
+        Args:
+            registration_config_path: Path to the TOML configuration used for
+                depth conversion and multiview registration.
+        """
         from markovids.vid.io import format_intrinsics
         from markovids.pcl.pipeline import registration_pipeline
 
-        # avis = self.video_paths
-        # kpoint_root_dir = self.keypoints2d_output_path
         use_data_dir = os.path.join(self.base_dir, self.trial_id)
-        # transforms_path = self.transforms_path
 
         if self.keypoints3d_output_path is None:
             self.keypoints3d_output_path = os.path.join(
                 self.base_dir, self.trial_id, "_proc", f"_kpoints_v{self.version_num}_3d"
             )
 
-        save_dir = self.keypoints3d_output_path
-
         for avi in self.video_paths:
             self.logger.info(f"-> {avi}")
 
-        # print("Converting 2D keypoints to 3D")
         if self.verbose:
             self.logger.info("Converting 2D keypoints to 3D...")
 
@@ -128,11 +168,6 @@ class Trial:
             conda_env_name=self.conda_env_name,
         )
 
-        """
-            Merge keypoints across views...
-        """
-
-        # print("Merging keypoints...")
         if self.verbose:
             self.logger.info("Merging keypoints...")
 
@@ -162,17 +197,34 @@ class Trial:
         alt_key_path=None,
         **overlay_kwargs,
     ):
-        """
-        Visualizes the 3D keypoints saved in self.keypoints3d_output_path.
+        """Render merged 3D keypoints and optionally overlay them on video.
+
+        Loads ``filename`` and ``merged_keypoints.toml`` from
+        ``keypoints3d_output_path`` and reads the skeleton definition before
+        starting either renderer. The Matplotlib renderer uses the
+        ``merged_keypoints_smooth`` dataset; the overlay renderer receives
+        ``alt_key_path`` when one is provided.
 
         Args:
-            matplot_viz (bool): Flag to control whether to render the matplotlib-based visualization.
-            overlay_viz (bool): Flag to control whether to render the depth video kepyoint overlay visualization.
-            output_dir (str, optional): Directory to save the MP4. Defaults to self.base_dir/self.trial_id/renders.
-            filename (str): The name of the H5 file to load (default: merged_keypoints.h5).
-            max_frames_matplot (int): number of frames to render for the matplotlib-based render.
-            overlay_kwargs (dict): arguments for depth video keypoint overlay: (`n_frames`, `batch_size`, `raw`,
-                                   `cam_by_conf`, `frame_start`, `frame_end`, `render_save_name`)
+            matplot_viz: Whether to render a 3D trajectory MP4.
+            overlay_viz: Whether to render a keypoint overlay MP4.
+            output_dir: Directory for rendered videos. Defaults to
+                ``base_dir/trial_id/_proc/renders``.
+            filename: Name of the merged keypoint HDF5 file to load.
+            max_frames_matplot: Maximum frame index passed to the 3D renderer.
+            matplot_save_name: Filename stem for the 3D trajectory MP4.
+            skeleton_json_path: Path to the JSON skeleton edge definition.
+            alt_key_path: Optional keypoint HDF5 file used by the overlay
+                renderer instead of its version-based default.
+            **overlay_kwargs: Additional arguments passed to the overlay
+                processor, such as ``n_frames``, ``batch_size``, ``raw``,
+                ``cam_by_conf``, ``frame_start``, ``frame_end``, and
+                ``render_save_name``.
+
+        Raises:
+            ValueError: If ``keypoints3d_output_path`` is unset.
+            FileNotFoundError: If the requested merged keypoint file is absent.
+            KeyError: If the HDF5 file lacks ``merged_keypoints_smooth``.
         """
         if self.keypoints3d_output_path is None:
             raise ValueError(

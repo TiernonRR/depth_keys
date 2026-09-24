@@ -74,6 +74,7 @@ def test_compute_keypoints_accepts_explicit_environment_options(tmp_path, monkey
 
 
 def _candidate(parent, name):
+    """Create a session candidate with one processed camera video."""
     proc = parent / name / "_proc"
     proc.mkdir(parents=True)
     (proc / "cam.avi").touch()

@@ -14,6 +14,18 @@ def check_directory(
         version_num: str = 1,
         output_dirs: dict = {},
 ):
+    """Check whether the expected 2D, 3D, and render artifacts exist.
+
+    Args:
+        source_directory: Directory containing camera AVI files and outputs.
+        version_num: Version embedded in keypoint and overlay filenames.
+        output_dirs: Optional overrides for keypoint directory names.
+
+    Returns:
+        Mapping with Boolean ``2d``, ``3d``, and ``render`` completion flags.
+        The 2D check accepts either ``.slp`` or ``.pkl.gz`` for each camera;
+        the 3D check also requires ``merged_keypoints.h5``.
+    """
     avis = glob(os.path.join(source_directory, "*.avi"))
     avis_base = [os.path.splitext(os.path.basename(_avi))[0] for _avi in avis]
     use_output_dirs = DEFAULT_OUTPUT_DIRS | output_dirs
@@ -70,6 +82,30 @@ def process_directory(
     force=False,
     output_dirs = {}
 ):
+    """Run selected keypoint and visualization stages for a session directory.
+
+    Finds camera AVI files with ``glob_pattern``, constructs a ``Trial``, and
+    runs inference, 3D registration, and rendering according to the stage flags.
+
+    Args:
+        source_directory: Session directory containing the ``_proc`` folder.
+        registration_config_path: TOML settings for depth conversion and registration.
+        ci_model_path: Centered-instance model directory.
+        centroid_model_path: Centroid model directory.
+        intrinsics_path: Camera intrinsics TOML file.
+        transforms_path: Optional transforms for registration.
+        skeleton_path: JSON skeleton definition used by rendering.
+        node_names: Ordered names of keypoints in the SLEAP predictions.
+        glob_pattern: Video path pattern relative to ``source_directory``.
+        version_num: Version embedded in keypoint output directory names.
+        reference_camera: Reference camera identifier stored on the trial.
+        cable: Whether to use cable-specific depth settings.
+        compute_2d: Whether to run SLEAP inference.
+        compute_3d: Whether to convert and register keypoints.
+        render: Whether to create both visualization videos.
+        force: Whether existing output directories may be reused.
+        output_dirs: Optional overrides for keypoint directory names.
+    """
     import warnings
     from depth_keys.experiment.trial import Trial
     logger = logging.getLogger(__name__)
