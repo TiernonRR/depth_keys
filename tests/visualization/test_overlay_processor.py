@@ -49,10 +49,11 @@ class FakeProcess:
 class FakeReader:
     """Serve predictable camera frames and record read requests."""
 
-    def __init__(self, nframes=5, frame_size=(4, 3), frames=None):
+    def __init__(self, nframes=5, frame_size=(4, 3), frames=None, fps=50.0):
         """Set frame count, dimensions, and optional frame content."""
         self.nframes = nframes
         self.frame_size = frame_size
+        self.fps = fps
         self.frames = np.zeros((nframes, frame_size[1], frame_size[0], 3), dtype=np.uint8) if frames is None else frames
         self.calls = []
         self.closed = False
@@ -415,6 +416,7 @@ def test_process_frame_batch_empty_overflow_confidence_and_single_write(tmp_path
 
 def test_create_video_smooth_raw_and_custom_output_names_and_batching(tmp_path, monkeypatch):
     processor = make_processor(tmp_path, n_frames=3, batch_size=2)
+    reader = FakeReader(fps=29.97)
     calls = []
 
     class Writer:
@@ -426,9 +428,10 @@ def test_create_video_smooth_raw_and_custom_output_names_and_batching(tmp_path, 
     monkeypatch.setattr(op, "MP4Writer", Writer)
     monkeypatch.setattr(processor, "load_video_batch", lambda reader, start, end: (np.zeros((end-start, 3, 4, 3), dtype=np.uint8), (3, 4)))
     monkeypatch.setattr(processor, "process_frame_batch", lambda *args: calls.append(("batch", args[2], args[3])))
-    processor.create_video(np.zeros((3, 1, 3)), 0, 1, (3, 4), object())
+    processor.create_video(np.zeros((3, 1, 3)), 0, 1, (3, 4), reader)
     assert calls[0][1].endswith("keypoints_overlay_v1.mp4")
     assert calls[0][2] == (4, 3)
+    assert calls[0][3] == 29.97
     assert calls[-1] == ("close",)
     assert [x[1:] for x in calls if x[0] == "batch"] == [(0, 2), (2, 3)]
 
@@ -436,14 +439,14 @@ def test_create_video_smooth_raw_and_custom_output_names_and_batching(tmp_path, 
     processor.raw = True
     processor.save_name = None
     processor.frame_start = processor.frame_end = None
-    processor.create_video(np.zeros((3, 1, 3)), 0, 1, (3, 4), object())
+    processor.create_video(np.zeros((3, 1, 3)), 0, 1, (3, 4), reader)
     assert calls[0][1].endswith("keypoints_overlay_v1-raw.mp4")
     assert [x[1:] for x in calls if x[0] == "batch"] == [(0, 2), (2, 3)]
 
     calls.clear()
     processor.save_name = "custom"
     processor.frame_start, processor.frame_end = 1, 3
-    processor.create_video(np.zeros((3, 1, 3)), 0, 1, (3, 4), object())
+    processor.create_video(np.zeros((3, 1, 3)), 0, 1, (3, 4), reader)
     assert calls[0][1].endswith("custom.mp4")
     assert [x[1:] for x in calls if x[0] == "batch"] == [(1, 3)]
 

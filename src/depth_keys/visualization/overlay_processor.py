@@ -74,7 +74,7 @@ class MP4Writer:
         self,
         filepath: str,
         frame_size: Tuple[int, int],
-        fps: int,
+        fps: float,
         prepend_args: str = None,
     ):
         """Configure the output file, frame dimensions, and FFmpeg command.
@@ -206,7 +206,6 @@ class KeypointVideoProcessor:
         output_path: str = None,
         conda_env_name: Optional[str] = None,
         keypoint_file: Optional[str] = None,
-        prepend_args: str = None, # deprecated
     ):
         """Set rendering options and load camera metadata for a session.
 
@@ -225,7 +224,6 @@ class KeypointVideoProcessor:
             output_path: Output directory; defaults to ``_proc/renders``.
             conda_env_name: Stored environment name; not used by this class.
             keypoint_file: Optional HDF5 file overriding the default keypoints.
-            prepend_args: Deprecated argument; not used by this class.
 
         Raises:
             FileNotFoundError: If ``keypoint_file`` is set but absent.
@@ -251,8 +249,6 @@ class KeypointVideoProcessor:
         self.reference_camera = reference_camera
         self.intrinsics_file = intrinsics_file
 
-        # if self.conda_env_name is None:
-        #     raise ValueError("conda_env_name is required for ffmpeg subprocess execution.")
 
         if self.keypoint_file is not None and not os.path.exists(self.keypoint_file):
             raise FileNotFoundError(
@@ -273,7 +269,6 @@ class KeypointVideoProcessor:
         # Video processing parameters
         self.keypoint_radius = 3
         self.colormap = cm.jet
-        self.fps = 100 # TODO: THIS SHOULD NOT BE HARDCODED!!!
         self.prepend_args = None
         # self.prepend_args = f"source ~/conda_activate ; conda activate {self.conda_env_name}"
         self.cam_by_conf = cam_by_conf
@@ -681,7 +676,7 @@ class KeypointVideoProcessor:
         writer = MP4Writer(
             output_path,
             frame_size=(frame_size[1], frame_size[0]),  # (width, height) for ffmpeg
-            fps=self.fps,
+            fps=video_reader.fps,
             prepend_args=self.prepend_args,
         )
 
