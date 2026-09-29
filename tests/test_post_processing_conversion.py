@@ -309,9 +309,32 @@ def test_get_3d_kpoints_skips_existing_output(tmp_path, monkeypatch):
     output_dir.mkdir()
     (output_dir / "cam0.pkl.gz").touch()
     config = write_config(tmp_path / "config.toml", depth_params={})
-    monkeypatch.setattr(cc.vid.io, "AutoReader", Mock(side_effect=AssertionError("reader should not be opened"))) # TODO need to think of better handling, what if someone wants to regen (e.g. force=True)
+    monkeypatch.setattr(cc.vid.io, "AutoReader", Mock(side_effect=AssertionError("reader should not be opened")))
     with pytest.warns(UserWarning, match="already computed"):
         assert cc.get_3d_kpoints(str(avi), str(config), save_dir="out") is None
+
+
+def test_get_3d_kpoints_force_replaces_existing_output(tmp_path, monkeypatch):
+    avi = tmp_path / "cam0.avi"
+    avi.touch()
+    config = write_config(tmp_path / "config.toml", depth_params={
+        "snout": {"patch_radius": 0, "agg_func": 50},
+    })
+    write_2d_artifacts(tmp_path, "cam0", np.array([[[0, 0, .5]]]), ["snout"])
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    joblib.dump(np.full((1, 1, 4), -1), output_dir / "cam0.pkl.gz")
+    reader = FakeReader(np.full((1, 2, 2), 25, dtype=np.float32))
+    monkeypatch.setattr(cc.vid.io, "AutoReader", lambda *a, **kw: reader)
+    monkeypatch.setattr(cc.vid.util, "fill_holes", lambda frame: frame, raising=False)
+    monkeypatch.setattr(cc.cv2, "bilateralFilter", lambda frame, **kw: frame)
+    monkeypatch.setattr(cc, "tqdm", lambda values: values)
+
+    cc.get_3d_kpoints(str(avi), str(config), save_dir="out", force=True)
+
+    assert_allclose(joblib.load(output_dir / "cam0.pkl.gz"), [[[0, 0, 25, .5]]])
+    assert toml.load(output_dir / "cam0.toml")["node_names"] == ["snout"]
+    assert reader.closed
 
 
 def test_get_3d_kpoints_reports_missing_node_configuration(tmp_path, monkeypatch):
@@ -467,3 +490,34 @@ def test_convert_2d_to_3d_creates_reordered_and_empty_sleap_arrays_and_uses_cach
     assert delayed_calls[0][2]["reader_kwargs"]["prepend_args"] == "source ~/conda_activate ; conda activate depth-env"
     assert parallel_calls[0][1]["n_jobs"] == -1
     assert parallel_calls[1][1] == result
+
+
+def test_convert_2d_to_3d_force_rebuilds_cached_2d_and_forwards_force(tmp_path, monkeypatch):
+    config = write_config(tmp_path / "config.toml", depth_params={
+        "snout": {"patch_radius": 0, "agg_func": 50},
+    })
+    avi = tmp_path / "cam.avi"
+    avi.touch()
+    root = tmp_path / "sleap"
+    root.mkdir()
+    cache_dir = tmp_path / "_kpoints_v2_2d"
+    cache_dir.mkdir()
+    joblib.dump(np.full((1, 1, 3), -1), cache_dir / "cam.pkl.gz")
+    point = {"name": "snout", "xy": [1, 2], "score": .75}
+    sleap_data = SimpleNamespace(labeled_frames=[
+        SimpleNamespace(instances=[SimpleNamespace(points=[point])]),
+    ])
+    monkeypatch.setattr(cc.sio, "load_file", lambda path: sleap_data)
+    delayed_calls = []
+    monkeypatch.setattr(cc.joblib, "delayed", lambda func: lambda *args, **kwargs: delayed_calls.append(kwargs))
+    monkeypatch.setattr(cc.joblib, "Parallel", lambda **kwargs: lambda jobs: jobs)
+    monkeypatch.setattr(cc, "tqdm", lambda values: values)
+
+    cc.convert_2d_to_3d(
+        str(root), [str(avi)], version_num=2, cable=False,
+        node_names=["snout"], config_path=str(config), force=True,
+    )
+
+    assert_allclose(joblib.load(cache_dir / "cam.pkl.gz"), [[[1, 2, .75]]])
+    assert toml.load(cache_dir / "cam.toml")["node_names"] == ["snout"]
+    assert delayed_calls[0]["force"] is True

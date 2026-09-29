@@ -393,7 +393,6 @@ class KeypointVideoProcessor:
         print(f"Using {self.n_frames} frames")
         return self.n_frames
 
-    # TODO missing last frame (add + 1), update and run unit tests to see what breaks
     def load_video_batch(self, video_reader, start_frame, end_frame):
         """Read frames in the half-open interval ``[start_frame, end_frame)``.
 

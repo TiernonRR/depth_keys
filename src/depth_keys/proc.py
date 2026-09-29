@@ -40,7 +40,6 @@ def check_directory(
         output_file2 = os.path.join(keypoints2d_output_path, f"{_avi}.pkl.gz")
         exists_2d_output.append(os.path.exists(output_file) | os.path.exists(output_file2))
 
-    # print(exists_2d_output)
     iscomplete["2d"] = all(exists_2d_output)
      
     exists_3d_output = []
@@ -50,9 +49,6 @@ def check_directory(
     exists_3d_output.append(os.path.exists(os.path.join(keypoints3d_output_path, "merged_keypoints.h5")))
     
     iscomplete["3d"] = all(exists_3d_output)
-    # isok["2d"] = not os.path.exists(keypoints2d_output_path)
-    # isok["3d"] = not os.path.exists(keypoints3d_output_path)
-    # isok["render"] = not os.path.exists(renders_output_path)
 
     renders_files = [f"keypoints_overlay_v{version_num}.mp4", "matplotlib_render.mp4"]
     exists_renders_output = [os.path.exists(os.path.join(renders_output_path, _file)) for _file in renders_files]
@@ -60,9 +56,6 @@ def check_directory(
     return iscomplete
 
 
-# TODO:
-# 1. more verbose logging of all parameters...
-# 2. Try/Catch when force=False for existing dirs
 def process_directory(
     source_directory,
     registration_config_path,
@@ -103,10 +96,9 @@ def process_directory(
         compute_2d: Whether to run SLEAP inference.
         compute_3d: Whether to convert and register keypoints.
         render: Whether to create both visualization videos.
-        force: Whether existing output directories may be reused.
+        force: Whether to regenerate existing 2D and 3D files for selected stages.
         output_dirs: Optional overrides for keypoint directory names.
     """
-    import warnings
     from depth_keys.experiment.trial import Trial
     logger = logging.getLogger(__name__)
 
@@ -140,13 +132,20 @@ def process_directory(
 
     # process_session: 2D keypoint prediction
     if compute_2d:
-        os.makedirs(keypoints2d_output_path, exist_ok=force)
-        trial.predict_keypoints(ci_model_path=ci_model_path, centroid_model_path=centroid_model_path)
+        os.makedirs(keypoints2d_output_path, exist_ok=True)
+        trial.predict_keypoints(
+            ci_model_path=ci_model_path,
+            centroid_model_path=centroid_model_path,
+            force=force,
+        )
     
     # post_process: 2D -> 3D conversion
     if compute_3d:
-        os.makedirs(keypoints3d_output_path, exist_ok=force) 
-        trial.compute_3d_keypoints(registration_config_path=registration_config_path)
+        os.makedirs(keypoints3d_output_path, exist_ok=True)
+        trial.compute_3d_keypoints(
+            registration_config_path=registration_config_path,
+            force=force,
+        )
     
     # visualize: render keypoint overlay + 3D matplotlib video
     if render:

@@ -99,7 +99,7 @@ def test_create_kpoint_batch_selects_incomplete_candidates_and_builds_slurm_comm
     assert "second" not in result.output
     assert "--gpus-per-node A100:2" in result.output
     assert "--constraint gpu" in result.output and "--constraint large" in result.output
-    assert "intrinsics.toml" not in result.output
+    assert "intrinsics.toml" in result.output
 
 
 def test_create_kpoint_batch_force_includes_complete_candidate(tmp_path, monkeypatch):
@@ -111,7 +111,7 @@ def test_create_kpoint_batch_force_includes_complete_candidate(tmp_path, monkeyp
     assert "complete" in result.output
 
 
-@pytest.mark.xfail(strict=True, reason="batch selection skips a directory when 2D is complete even though requested 3D remains incomplete")
+# @pytest.mark.xfail(strict=True, reason="batch selection skips a directory when 2D is complete even though requested 3D remains incomplete")
 def test_create_kpoint_batch_runs_both_stages_when_only_2d_is_complete(tmp_path, monkeypatch):
     candidate = _candidate(tmp_path, "needs-3d")
     monkeypatch.setattr("depth_keys.proc.check_directory", lambda *args, **kwargs: {"2d": True, "3d": False, "render": False})
@@ -122,7 +122,7 @@ def test_create_kpoint_batch_runs_both_stages_when_only_2d_is_complete(tmp_path,
     assert "needs-3d" in result.output
 
 
-@pytest.mark.xfail(strict=True, reason="create_kpoint_batch builds param_dct without --intrinsics-path")
+# @pytest.mark.xfail(strict=True, reason="create_kpoint_batch builds param_dct without --intrinsics-path")
 def test_create_kpoint_batch_forwards_intrinsics_path(tmp_path, monkeypatch):
     _candidate(tmp_path, "candidate")
     monkeypatch.setattr("depth_keys.proc.check_directory", lambda *args, **kwargs: {"2d": False, "3d": False, "render": False})

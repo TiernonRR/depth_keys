@@ -187,7 +187,8 @@ def get_3d_kpoints(
     z_valid_range = (1,200),
     reader_kwargs=None,
     bilateral_kwargs={"d":5, "sigmaColor": 15, "sigmaSpace":3},
-    replace_height_spikes_kwargs=None
+    replace_height_spikes_kwargs=None,
+    force=False,
 ):
     """Attach video depth values to 2D keypoints and save camera artifacts.
 
@@ -206,9 +207,11 @@ def get_3d_kpoints(
         reader_kwargs: Additional arguments for ``AutoReader``.
         bilateral_kwargs: Arguments for OpenCV's bilateral filter.
         replace_height_spikes_kwargs: Optional arguments for spike filtering.
+        force: Whether to regenerate existing per-camera 3D output.
 
     Returns:
-        ``None`` after writing files, or when output exists or 2D data is empty.
+        ``None`` after writing files, or when output exists without ``force``
+        or 2D data is empty.
 
     Raises:
         KeyError: If a node lacks required depth patch settings.
@@ -224,7 +227,7 @@ def get_3d_kpoints(
     new_save_dir = os.path.join(avi_dir, save_dir)
         
     new_save_file = os.path.join(new_save_dir, f"{cam}.pkl.gz")
-    if os.path.exists(new_save_file):
+    if os.path.exists(new_save_file) and not force:
         warnings.warn(f"3D keypoints already computed for {avi_file}, skipping...")
         return None 
     new_metadata_file = os.path.join(new_save_dir, f"{cam}.toml")
@@ -340,11 +343,13 @@ def convert_2d_to_3d(
     node_names,
     config_path,
     conda_env_name=None,
+    force=False,
 ):
     """Convert SLEAP predictions to per-camera 3D keypoint files.
 
     Creates ``(x, y, score)`` arrays and metadata beside each video, then
-    processes depth for all videos in parallel. Existing 2D arrays are reused.
+    processes depth for all videos in parallel. Existing 2D arrays and 3D
+    files are reused unless ``force`` is true.
 
     Args:
         kpoint_root_dir: Directory containing camera-named ``.slp`` files.
@@ -354,6 +359,7 @@ def convert_2d_to_3d(
         node_names: Ordered names defining output point positions.
         config_path: TOML file with depth patch and filtering settings.
         conda_env_name: Optional environment activated by the video reader.
+        force: Whether to regenerate cached 2D arrays and per-camera 3D files.
 
     Returns:
         One result per video from the parallel ``get_3d_kpoints`` calls.
@@ -371,7 +377,7 @@ def convert_2d_to_3d(
         os.makedirs(save_dir, exist_ok=True)
         save_file = os.path.join(save_dir, f"{cam}.pkl.gz")
 
-        if not os.path.exists(save_file):
+        if force or not os.path.exists(save_file):
             sleap_file = os.path.join(kpoint_root_dir, f"{cam}.slp")
         
             sleap_dat = sio.load_file(sleap_file)
@@ -426,7 +432,8 @@ def convert_2d_to_3d(
                 z_valid_range=(1,200),
                 reader_kwargs=reader_kwargs,
                 save_dir = f"_kpoints_v{version_num}_3d",
-                kpoint_2d_save_dir = f"_kpoints_v{version_num}_2d"
+                kpoint_2d_save_dir = f"_kpoints_v{version_num}_2d",
+                force=force,
             )
             
         )

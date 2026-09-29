@@ -55,6 +55,29 @@ def test_predict_keypoints_honors_custom_output_and_empty_input(tmp_path, monkey
     assert calls == []
 
 
+def test_predict_keypoints_force_reruns_existing_output(tmp_path, monkeypatch):
+    output = tmp_path / "predictions"
+    output.mkdir()
+    (output / "cam.slp").write_text("old")
+    calls = []
+
+    def fake_inference(**kwargs):
+        calls.append(kwargs)
+        Path(kwargs["output_path"]).write_text("new")
+
+    monkeypatch.setattr(trial_module, "run_inference_on_video", fake_inference)
+    trial = Trial("session", [str(tmp_path / "cam.avi")], keypoints2d_output_path=str(output))
+
+    trial.predict_keypoints(force=False)
+    assert calls == []
+    assert (output / "cam.slp").read_text() == "old"
+
+    trial.predict_keypoints(force=True)
+    assert len(calls) == 1
+    assert calls[0]["output_path"] == str(output / "cam.slp")
+    assert (output / "cam.slp").read_text() == "new"
+
+
 def _install_markovids_fakes(monkeypatch):
     """Install fake Markovids modules used by registration tests."""
     format_intrinsics = lambda data: ("K", "D")
@@ -81,7 +104,8 @@ def _install_markovids_fakes(monkeypatch):
     return io_module, pipeline_module
 
 
-def test_compute_3d_keypoints_forwards_conversion_and_registration(tmp_path, monkeypatch):
+@pytest.mark.parametrize("force", [False, True])
+def test_compute_3d_keypoints_forwards_conversion_and_registration(tmp_path, monkeypatch, force):
     io_module, pipeline_module = _install_markovids_fakes(monkeypatch)
     conversion = lambda *args, **kwargs: None
     monkeypatch.setattr(trial_module, "convert_2d_to_3d", conversion)
@@ -99,9 +123,9 @@ def test_compute_3d_keypoints_forwards_conversion_and_registration(tmp_path, mon
         conda_env_name="env", transforms_path="transforms", bundle_adjust=True,
         verbose=False,
     )
-    trial.compute_3d_keypoints("registration.toml")
+    trial.compute_3d_keypoints("registration.toml", force=force)
     assert convert_call["args"] == ("2d", ["cam.avi"], 3, True, ["nose"], "registration.toml")
-    assert convert_call["kwargs"] == {"conda_env_name": "env"}
+    assert convert_call["kwargs"] == {"conda_env_name": "env", "force": force}
     assert register_call["args"] == ("registration.toml", str(tmp_path / "session"))
     assert register_call["kwargs"] == {
         "kpoints_save_dir": "3d", "intrinsics_matrix": "K",

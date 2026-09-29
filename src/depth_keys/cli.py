@@ -15,9 +15,6 @@ def cli():
     pass
 
 
-# TODO
-# add code for applying sleap inference and conversion to 3d via
-# command line
 def slurm_params(func):
     """Add Slurm resource and command-wrapper options to a Click command."""
     # fmt: off
@@ -69,11 +66,9 @@ def shell_join(args):
     return shlex.join([str(a) for a in args])
 
 # TODO:
-# 1. Check directory for avis...
 # 2. Handle file inputs, have env var options...
 # 3. Write out a batch so that each one can be processed...
 # fmt: off
-# TODO confirm: if both 2d and 3d requested, 2d is complete but 3d is not, mistakenly skips this dir
 @cli.command( name="create-kpoint-batch", context_settings={"show_default": True, "auto_envvar_prefix": "DEPTHKEYS"}, )
 @click.option("--chk_dir", type=click.Path(), default=None)
 @click.option("--proc-sub-dir", type=str, default="_proc", help="Location with processed depth videos")
@@ -128,7 +123,7 @@ def create_kpoint_batch(chk_dir,
         compute_2d: Whether to request 2D inference.
         compute_3d: Whether to request 3D conversion.
         render: Whether to request visualizations.
-        force: Whether to process sessions with existing outputs.
+        force: Whether to regenerate outputs for requested stages.
         ncpus: CPUs requested from Slurm.
         memory: Slurm memory request.
         wall_time: Slurm time limit.
@@ -154,6 +149,7 @@ def create_kpoint_batch(chk_dir,
         "--skeleton-path": skeleton_path,
         "--node-path": node_path,
         "--reference-camera": reference_camera,
+        "--intrinsics-path": intrinsics_path
     }
     if cable:
         param_dct["--cable"] = None
@@ -171,9 +167,6 @@ def create_kpoint_batch(chk_dir,
         gpu_cmd = f"{gpu_type}:{ngpus}"
     else:
         gpu_cmd = f"{ngpus}"
-    
-    # if suffix is None:
-    #     suffix = ""
 
     cluster_prefix = [
         "sbatch",
@@ -207,7 +200,7 @@ def create_kpoint_batch(chk_dir,
     listing = [_listing for _listing in listing if os.path.isdir(_listing)]
     
     include_dirs = []
-    # print(listing)
+    
     for _listing in listing:
         subdir = os.path.join(_listing, proc_sub_dir)
         if not os.path.exists(subdir):
@@ -216,77 +209,52 @@ def create_kpoint_batch(chk_dir,
         avis = glob(os.path.join(subdir, "*.avi"))
         if len(avis) == 0:
             continue
-        # NOW we perform checks
-        # TODO:
-        # 1. more explicit checks for 3d and render to ensure data is present and intact
-        iscomplete = check_directory(subdir, version_num=VERSION_NUM)
-        # print(_listing)
-        # print(isok)
         
+        iscomplete = check_directory(subdir, version_num=VERSION_NUM) # check what artefacts have been generated
 
-        if ("--compute-2d" in param_dct.keys()) and (iscomplete["2d"]) and (not force):
+        needs_2d = compute_2d and (force or not iscomplete["2d"])
+        needs_3d = compute_3d and (force or not iscomplete["3d"] or needs_2d)
+        needs_render = render and (force or not iscomplete["render"] or needs_3d)
+
+        if not any((needs_2d, needs_3d, needs_render)):
             continue
 
-        if ("--compute-3d" in param_dct.keys()) and (iscomplete["3d"]) and (not force):
+        if needs_3d and not (needs_2d or iscomplete["2d"]):
+            continue
+        if needs_render and not (needs_3d or iscomplete["3d"]):
             continue
 
-        # we must have 2d for conversion to 3d!
-        if ("--compute-3d" in param_dct.keys()) and (not "--compute-2d" in param_dct.keys()) and (not iscomplete["2d"]):
-            continue
-        
-        if ("--render" in param_dct.keys()) and (not force) and (iscomplete["render"]):
-            continue
-
-        # we must have 3d for rendering
-        if ("--render" in param_dct.keys()) and (not "--compute-3d" in param_dct.keys()) and (not iscomplete["3d"]):
-            continue
-
-        
-        include_dirs.append(_listing)
+        include_dirs.append((_listing, needs_2d, needs_3d, needs_render))
     
     if prefix is not None and prefix[-1] != ";":
         prefix += ";"
 
-    for _dir in include_dirs:
-        command = ["depth-keys", "compute-keypoints", _dir]
-        for k, v in param_dct.items():
-            if v is not None:
-                command.append(k)
-                command.append(v)
-                # command += f" {k} {v}"
-            else:
-                command.append(k)
-                # command += f" {k}"
+    for _dir, needs_2d, needs_3d, needs_render in include_dirs:
+        session_params = param_dct.copy()
 
-        # use_command = command.format(process_dir=_dir)
-        # wrap_str = shlex.join(map(str, command))
+        if not needs_2d:
+            session_params.pop("--compute-2d", None)
+        if not needs_3d:
+            session_params.pop("--compute-3d", None)
+        if not needs_render:
+            session_params.pop("--render", None)
+
+        command = ["depth-keys", "compute-keypoints", _dir]
+        for option, value in session_params.items():
+            command.append(option)
+            if value is not None:
+                command.append(value)
+
         wrap_str = shell_join(command)
         if prefix is not None:
             wrap_str = prefix + wrap_str
-        # use_list = cluster_prefix + command
-        # print(wrap_str)
+
         use_list = cluster_prefix + [wrap_str]
-            # suffix
         if suffix is not None:
             use_list.append(suffix)
-        run_command_str = shell_join(use_list)
-        # run_command_str = shlex.join(map(str, use_list))
-        # issue_command = f"{cluster_prefix_str}{base_command}"
-    
-        # if suffix is not None:
-        #     run_command = f'{issue_command}{use_command}{suffix}"'
-        # else:
-        #     run_command = f'{issue_command}{use_command}"'
 
-        print(run_command_str)
-        # print(command.format(process_dir=_dir))
-         
+        print(shell_join(use_list))
 
-                
-
-    
-    # now walk through directories and ensure we have what we need etc...  
-    # will need separate directory checks for 2d 3d, etc.
 
 
 
@@ -330,7 +298,7 @@ def compute_keypoints(
         compute_2d: Whether to run SLEAP inference.
         compute_3d: Whether to convert and register keypoints.
         render: Whether to render keypoint videos.
-        force: Whether existing output directories may be reused.
+        force: Whether to regenerate existing files for requested stages.
     """
     if proc_dir is None:
         proc_dir = os.getcwd()

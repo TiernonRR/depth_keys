@@ -99,17 +99,20 @@ class Trial:
             self.logger = logger
  
 
-    def predict_keypoints(self, ci_model_path=None, centroid_model_path=None):
+    def predict_keypoints(self, ci_model_path=None, centroid_model_path=None, force=False):
         """Write SLEAP predictions for each video in ``video_paths``.
 
         Creates ``keypoints2d_output_path`` if needed and writes one ``.slp``
-        file per video, named after the video's filename stem.
+        file per video, named after the video's filename stem. Existing files
+        are skipped unless ``force`` is true, in which case inference writes
+        to the same output path again.
 
         Args:
             ci_model_path: Centered-instance model directory. When omitted,
                 the inference function uses its default model.
             centroid_model_path: Centroid model directory. When omitted, the
                 inference function uses its default model.
+            force: Whether to rerun inference for existing ``.slp`` files.
         """
 
         if self.keypoints2d_output_path is None:
@@ -120,17 +123,19 @@ class Trial:
         for video_path in self.video_paths:
 
             save_name = os.path.splitext(os.path.basename(video_path))[0]
+            output_path = os.path.join(self.keypoints2d_output_path, f"{save_name}.slp")
+            if os.path.exists(output_path) and not force:
+                self.logger.info("2D keypoints already exist; skipping %s", output_path)
+                continue
 
             _ = run_inference_on_video(
                 video_path=video_path,
-                output_path=os.path.join(
-                    self.keypoints2d_output_path, f"{save_name}.slp"
-                ),
+                output_path=output_path,
                 ci_model_path=ci_model_path,
                 centroid_model_path=centroid_model_path,
             )
 
-    def compute_3d_keypoints(self, registration_config_path):
+    def compute_3d_keypoints(self, registration_config_path, force=False):
         """Convert 2D predictions to depth keypoints and register camera views.
 
         Uses the trial's videos, node names, intrinsics, and conversion settings.
@@ -141,6 +146,7 @@ class Trial:
         Args:
             registration_config_path: Path to the TOML configuration used for
                 depth conversion and multiview registration.
+            force: Whether to regenerate cached 2D arrays and per-camera 3D files.
         """
         from markovids.vid.io import format_intrinsics
         from markovids.pcl.pipeline import registration_pipeline
@@ -166,6 +172,7 @@ class Trial:
             self.node_names,
             registration_config_path,
             conda_env_name=self.conda_env_name,
+            force=force,
         )
 
         if self.verbose:

@@ -76,7 +76,6 @@ def main():
 
     keypoint_output_path = os.path.join(base_dir, project, session, "_proc", output_dir) if output_dir else None
 
-    # post_proc_config_path = "/storage/home/hcoda1/3/triesenmy3/r-jmarkowitz30-0/depth_and_da/Validation/param_sweep/configs/config_sweep_034.toml"# "./config.toml" TODO remove
     post_proc_config_path = "/storage/home/hcoda1/3/triesenmy3/r-jmarkowitz30-0/depth_and_da/depth_keys/example_scripts/config.toml"
 
 
