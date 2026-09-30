@@ -10,52 +10,70 @@ from depth_keys.visualization import overlay_processor as op
 
 
 class FakePipe:
+    """Record pipe writes and expose configurable FFmpeg error output."""
+
     def __init__(self, stderr=b""):
+        """Initialize the captured writes and error bytes."""
         self.writes = []
         self.closed = False
         self._stderr = stderr
 
     def write(self, data):
+        """Record bytes written to the pipe."""
         self.writes.append(data)
 
     def close(self):
+        """Mark the pipe as closed."""
         self.closed = True
 
     def read(self):
+        """Return the configured error output."""
         return self._stderr
 
 
 class FakeProcess:
+    """Provide fake standard streams and track FFmpeg wait calls."""
+
     def __init__(self, stderr=b""):
+        """Create input and error pipes for a fake subprocess."""
         self.stdin = FakePipe()
         self.stderr = FakePipe(stderr=stderr)
         self.wait_calls = 0
 
     def wait(self):
+        """Record a wait and report a successful exit."""
         self.wait_calls += 1
         return 0
 
 
 class FakeReader:
-    def __init__(self, nframes=5, frame_size=(4, 3), frames=None):
+    """Serve predictable camera frames and record read requests."""
+
+    def __init__(self, nframes=5, frame_size=(4, 3), frames=None, fps=50.0):
+        """Set frame count, dimensions, and optional frame content."""
         self.nframes = nframes
         self.frame_size = frame_size
+        self.fps = fps
         self.frames = np.zeros((nframes, frame_size[1], frame_size[0], 3), dtype=np.uint8) if frames is None else frames
         self.calls = []
         self.closed = False
 
     def get_frames(self, indices):
+        """Return selected frames and record their indices."""
         self.calls.append(list(indices))
         return self.frames[indices]
 
     def get_file_info(self):
+        """Leave the preconfigured video metadata unchanged."""
         return None
 
     def close(self):
+        """Mark the fake reader as closed."""
         self.closed = True
 
 
 def make_processor_files(tmp_path, cameras=("cam0", "cam1")):
+    """Create session metadata and intrinsics files for processor tests."""
     session = tmp_path / "session"
     output = session / "_proc" / "_kpoints_v1_3d"
     output.mkdir(parents=True, exist_ok=True)
@@ -69,6 +87,7 @@ def make_processor_files(tmp_path, cameras=("cam0", "cam1")):
 
 @pytest.fixture(autouse=True)
 def fake_format_intrinsics(monkeypatch):
+    """Replace intrinsics parsing with fixed matrices for both test cameras."""
     matrices = {
         "cam0": np.array([[10.0, 0, 2.0], [0, 20.0, 3.0], [0, 0, 1.0]]),
         "cam1": np.array([[12.0, 0, 4.0], [0, 24.0, 5.0], [0, 0, 1.0]]),
@@ -77,6 +96,7 @@ def fake_format_intrinsics(monkeypatch):
 
 
 def make_processor(tmp_path, **kwargs):
+    """Create a processor with fixture files and optional constructor overrides."""
     session, intrinsics, _ = make_processor_files(tmp_path)
     args = dict(
         session_dir=str(session), version_num="1", reference_camera="cam0", intrinsics_file=str(intrinsics)
@@ -181,6 +201,7 @@ def test_processor_init_rejects_missing_keypoint_override(tmp_path):
 
 
 def write_keypoints(path, raw, smooth, conf=None):
+    """Write raw, smoothed, and optional confidence datasets to HDF5."""
     with h5py.File(path, "w") as f:
         f.create_dataset("merged_keypoints_raw", data=raw)
         f.create_dataset("merged_keypoints_smooth", data=smooth)
@@ -395,6 +416,7 @@ def test_process_frame_batch_empty_overflow_confidence_and_single_write(tmp_path
 
 def test_create_video_smooth_raw_and_custom_output_names_and_batching(tmp_path, monkeypatch):
     processor = make_processor(tmp_path, n_frames=3, batch_size=2)
+    reader = FakeReader(fps=29.97)
     calls = []
 
     class Writer:
@@ -406,9 +428,10 @@ def test_create_video_smooth_raw_and_custom_output_names_and_batching(tmp_path, 
     monkeypatch.setattr(op, "MP4Writer", Writer)
     monkeypatch.setattr(processor, "load_video_batch", lambda reader, start, end: (np.zeros((end-start, 3, 4, 3), dtype=np.uint8), (3, 4)))
     monkeypatch.setattr(processor, "process_frame_batch", lambda *args: calls.append(("batch", args[2], args[3])))
-    processor.create_video(np.zeros((3, 1, 3)), 0, 1, (3, 4), object())
+    processor.create_video(np.zeros((3, 1, 3)), 0, 1, (3, 4), reader)
     assert calls[0][1].endswith("keypoints_overlay_v1.mp4")
     assert calls[0][2] == (4, 3)
+    assert calls[0][3] == 29.97
     assert calls[-1] == ("close",)
     assert [x[1:] for x in calls if x[0] == "batch"] == [(0, 2), (2, 3)]
 
@@ -416,14 +439,14 @@ def test_create_video_smooth_raw_and_custom_output_names_and_batching(tmp_path, 
     processor.raw = True
     processor.save_name = None
     processor.frame_start = processor.frame_end = None
-    processor.create_video(np.zeros((3, 1, 3)), 0, 1, (3, 4), object())
+    processor.create_video(np.zeros((3, 1, 3)), 0, 1, (3, 4), reader)
     assert calls[0][1].endswith("keypoints_overlay_v1-raw.mp4")
     assert [x[1:] for x in calls if x[0] == "batch"] == [(0, 2), (2, 3)]
 
     calls.clear()
     processor.save_name = "custom"
     processor.frame_start, processor.frame_end = 1, 3
-    processor.create_video(np.zeros((3, 1, 3)), 0, 1, (3, 4), object())
+    processor.create_video(np.zeros((3, 1, 3)), 0, 1, (3, 4), reader)
     assert calls[0][1].endswith("custom.mp4")
     assert [x[1:] for x in calls if x[0] == "batch"] == [(1, 3)]
 
@@ -447,6 +470,7 @@ def test_create_video_closes_writer_on_processing_error(tmp_path, monkeypatch):
 
 
 def prepare_process_mocks(tmp_path, monkeypatch):
+    """Create a processor with stubbed I/O for process-flow tests."""
     processor = make_processor(tmp_path, n_frames=3)
     reader = FakeReader(nframes=3)
     monkeypatch.setattr(processor, "load_keypoints", lambda: np.zeros((3, 1, 3)))

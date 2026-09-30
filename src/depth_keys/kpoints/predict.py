@@ -1,7 +1,4 @@
-"""
-SLEAP-based pose estimation inference script.
-Processes video files frame-by-frame with optional hole-filling preprocessing.
-"""
+"""Run SLEAP-NN tracking on videos and report command-line progress."""
 
 from pathlib import Path
 
@@ -29,17 +26,26 @@ def run_inference_on_video(
     max_instances: int = 1,
     peak_threshold: float = 0.0,
 ) -> bool:
-    """
-    Run SLEAP inference on a video file.
-    
+    """Run SLEAP-NN tracking on a video and save its predictions.
+
+    Uses the configured default model paths when paths are omitted, and emits a
+    warning for each default selected. Progress is printed by the command
+    runner.
+
     Args:
-        video_path: Path to input video.
-        output_path: Path to save predictions (SLEAP .slp file).
-        ci_model_path: Optional path to centered-instance model directory.
-        centroid_model_path: Optional path to centroid model directory.
-        
+        video_path: Path to the input video.
+        output_path: Path for the output SLEAP ``.slp`` file.
+        ci_model_path: Path to the centered-instance model directory.
+        centroid_model_path: Path to the centroid model directory.
+        batch_size: Number of frames to process in each inference batch.
+        max_instances: Maximum number of instances to track per frame.
+        peak_threshold: Minimum peak score used by SLEAP-NN for tracking.
+
     Returns:
-        True when inference runs successfully.
+        ``True`` after the SLEAP-NN command exits successfully.
+
+    Raises:
+        RuntimeError: If the SLEAP-NN command exits with a nonzero status.
     """
     print(f"Processing video: {video_path}")
 
@@ -50,16 +56,6 @@ def run_inference_on_video(
     if centroid_model_path is None:
         centroid_model_path = str(CENTROID_MODEL_PATH)
         warnings.warn(f"No centroid model specified, attempting to load from {centroid_model_path}")
-    
-    # _predictions = run_inference(
-    #     data_path=video_path,
-    #     model_paths=[centroid_model_path, ci_model_path],
-    #     output_path=output_path,
-    #     make_labels=True,
-    #     max_instances=max_instances,
-    #     peak_threshold=peak_threshold,
-    #     batch_size=batch_size,
-    # )
 
     cmd = make_sleap_nn_track_cmd(
         video_path=video_path,
@@ -86,6 +82,24 @@ def make_sleap_nn_track_cmd(
     batch_size=None,
     device="cuda",
 ):
+    """Build the argument list for a SLEAP-NN tracking command.
+
+    The command includes both model paths and ``--gui``. Optional flags are
+    omitted when their values are ``None``.
+
+    Args:
+        video_path: Path to the input video.
+        centroid_model_path: Path to the centroid model directory.
+        ci_model_path: Path to the centered-instance model directory.
+        output_path: Path for the output SLEAP ``.slp`` file.
+        max_instances: Maximum instances per frame, if specified.
+        peak_threshold: Minimum peak score, if specified.
+        batch_size: Inference batch size, if specified.
+        device: Device passed to SLEAP-NN; ``None`` omits the flag.
+
+    Returns:
+        Command and arguments as separate strings, suitable for a subprocess.
+    """
     cmd = [
         "sleap-nn",
         "track",
@@ -112,21 +126,27 @@ def make_sleap_nn_track_cmd(
 
 
 
-# CHAT GPT GENERATED
 def run_sleap_nn_with_progress(
     cmd: list[str],
     *,
     log_every_s: float = 30.0,
 ) -> None:
+    """Run a command and print SLEAP-NN progress from its output.
+
+    Reads line-delimited JSON progress events from combined standard output and
+    standard error. Prints other nonempty lines as text, reports the first and
+    final progress events, and limits intermediate reports by ``log_every_s``.
+
+    Args:
+        cmd: Command and arguments to execute without a shell.
+        log_every_s: Minimum seconds between intermediate progress reports.
+
+    Raises:
+        RuntimeError: If the command exits with a nonzero status.
+    """
     import json
     import subprocess
     import time
-    """
-    Run SLEAP-NN CLI with --gui enabled.
-
-    Parses line-delimited JSON progress and emits Slurm-friendly logs.
-    Non-JSON output is passed through.
-    """
     print("Running command:")
     print(" ".join(cmd), flush=True)
 

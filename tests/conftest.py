@@ -11,6 +11,7 @@ import types
 
 
 def _install_optional_import_stubs():
+    """Provide import shims only for unavailable optional SLEAP dependencies."""
     try:
         importlib.import_module("torch")
     except ModuleNotFoundError as exc:

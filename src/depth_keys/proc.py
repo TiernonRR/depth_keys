@@ -14,6 +14,18 @@ def check_directory(
         version_num: str = 1,
         output_dirs: dict = {},
 ):
+    """Check whether the expected 2D, 3D, and render artifacts exist.
+
+    Args:
+        source_directory: Directory containing camera AVI files and outputs.
+        version_num: Version embedded in keypoint and overlay filenames.
+        output_dirs: Optional overrides for keypoint directory names.
+
+    Returns:
+        Mapping with Boolean ``2d``, ``3d``, and ``render`` completion flags.
+        The 2D check accepts either ``.slp`` or ``.pkl.gz`` for each camera;
+        the 3D check also requires ``merged_keypoints.h5``.
+    """
     avis = glob(os.path.join(source_directory, "*.avi"))
     avis_base = [os.path.splitext(os.path.basename(_avi))[0] for _avi in avis]
     use_output_dirs = DEFAULT_OUTPUT_DIRS | output_dirs
@@ -28,7 +40,6 @@ def check_directory(
         output_file2 = os.path.join(keypoints2d_output_path, f"{_avi}.pkl.gz")
         exists_2d_output.append(os.path.exists(output_file) | os.path.exists(output_file2))
 
-    # print(exists_2d_output)
     iscomplete["2d"] = all(exists_2d_output)
      
     exists_3d_output = []
@@ -38,9 +49,6 @@ def check_directory(
     exists_3d_output.append(os.path.exists(os.path.join(keypoints3d_output_path, "merged_keypoints.h5")))
     
     iscomplete["3d"] = all(exists_3d_output)
-    # isok["2d"] = not os.path.exists(keypoints2d_output_path)
-    # isok["3d"] = not os.path.exists(keypoints3d_output_path)
-    # isok["render"] = not os.path.exists(renders_output_path)
 
     renders_files = [f"keypoints_overlay_v{version_num}.mp4", "matplotlib_render.mp4"]
     exists_renders_output = [os.path.exists(os.path.join(renders_output_path, _file)) for _file in renders_files]
@@ -48,9 +56,6 @@ def check_directory(
     return iscomplete
 
 
-# TODO:
-# 1. more verbose logging of all parameters...
-# 2. Try/Catch when force=False for existing dirs
 def process_directory(
     source_directory,
     registration_config_path,
@@ -70,7 +75,30 @@ def process_directory(
     force=False,
     output_dirs = {}
 ):
-    import warnings
+    """Run selected keypoint and visualization stages for a session directory.
+
+    Finds camera AVI files with ``glob_pattern``, constructs a ``Trial``, and
+    runs inference, 3D registration, and rendering according to the stage flags.
+
+    Args:
+        source_directory: Session directory containing the ``_proc`` folder.
+        registration_config_path: TOML settings for depth conversion and registration.
+        ci_model_path: Centered-instance model directory.
+        centroid_model_path: Centroid model directory.
+        intrinsics_path: Camera intrinsics TOML file.
+        transforms_path: Optional transforms for registration.
+        skeleton_path: JSON skeleton definition used by rendering.
+        node_names: Ordered names of keypoints in the SLEAP predictions.
+        glob_pattern: Video path pattern relative to ``source_directory``.
+        version_num: Version embedded in keypoint output directory names.
+        reference_camera: Reference camera identifier stored on the trial.
+        cable: Whether to use cable-specific depth settings.
+        compute_2d: Whether to run SLEAP inference.
+        compute_3d: Whether to convert and register keypoints.
+        render: Whether to create both visualization videos.
+        force: Whether to regenerate existing 2D and 3D files for selected stages.
+        output_dirs: Optional overrides for keypoint directory names.
+    """
     from depth_keys.experiment.trial import Trial
     logger = logging.getLogger(__name__)
 
@@ -104,13 +132,20 @@ def process_directory(
 
     # process_session: 2D keypoint prediction
     if compute_2d:
-        os.makedirs(keypoints2d_output_path, exist_ok=force)
-        trial.predict_keypoints(ci_model_path=ci_model_path, centroid_model_path=centroid_model_path)
+        os.makedirs(keypoints2d_output_path, exist_ok=True)
+        trial.predict_keypoints(
+            ci_model_path=ci_model_path,
+            centroid_model_path=centroid_model_path,
+            force=force,
+        )
     
     # post_process: 2D -> 3D conversion
     if compute_3d:
-        os.makedirs(keypoints3d_output_path, exist_ok=force) 
-        trial.compute_3d_keypoints(registration_config_path=registration_config_path)
+        os.makedirs(keypoints3d_output_path, exist_ok=True)
+        trial.compute_3d_keypoints(
+            registration_config_path=registration_config_path,
+            force=force,
+        )
     
     # visualize: render keypoint overlay + 3D matplotlib video
     if render:

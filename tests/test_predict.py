@@ -106,12 +106,16 @@ def test_run_inference_on_video_propagates_runner_error(monkeypatch):
 
 
 class _FakeProcess:
+    """Expose subprocess output and a configurable exit code to runner tests."""
+
     def __init__(self, lines, return_code=0):
+        """Store output lines and the status returned by ``wait``."""
         self.stdout = lines
         self.return_code = return_code
         self.wait_called = False
 
     def wait(self):
+        """Record the wait call and return the configured exit code."""
         self.wait_called = True
         return self.return_code
 

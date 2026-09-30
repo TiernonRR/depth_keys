@@ -16,6 +16,7 @@ except ModuleNotFoundError as exc:
 
 
 def _touch(path):
+    """Create a test artifact and any missing parent directories."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.touch()
 
@@ -64,7 +65,8 @@ def test_check_directory_honors_custom_output_dirs(tmp_path):
     assert proc.check_directory(str(tmp_path), output_dirs=custom)["render"] is True
 
 
-def test_process_directory_discovers_sorted_videos_and_runs_selected_stages(tmp_path, monkeypatch):
+@pytest.mark.parametrize("force", [False, True])
+def test_process_directory_discovers_sorted_videos_and_runs_selected_stages(tmp_path, monkeypatch, force):
     source = tmp_path / "session"
     for stem in ("z", "a"):
         _touch(source / "_proc" / f"{stem}.avi")
@@ -84,15 +86,15 @@ def test_process_directory_discovers_sorted_videos_and_runs_selected_stages(tmp_
     proc.process_directory(
         str(source), "reg.toml", "ci", "centroid", "intr.toml", "trans.toml", "skeleton.json", ["nose"],
         version_num=3, reference_camera="cam", cable=True, compute_2d=True, compute_3d=True, render=True,
-        force=False, output_dirs={"kpoints_2d": "two_{version}", "kpoints_3d": "three_{version}"},
+        force=force, output_dirs={"kpoints_2d": "two_{version}", "kpoints_3d": "three_{version}"},
     )
     init = calls[0][1]
     assert init["video_paths"] == [str(source / "_proc" / "a.avi"), str(source / "_proc" / "z.avi")]
     assert init["keypoints2d_output_path"].endswith("_proc/two_3")
     assert init["keypoints3d_output_path"].endswith("_proc/three_3")
     assert calls[1:] == [
-        ("2d", {"ci_model_path": "ci", "centroid_model_path": "centroid"}),
-        ("3d", {"registration_config_path": "reg.toml"}),
+        ("2d", {"ci_model_path": "ci", "centroid_model_path": "centroid", "force": force}),
+        ("3d", {"registration_config_path": "reg.toml", "force": force}),
         ("render", {"matplot_viz": True, "overlay_viz": True, "output_dir": str(source / "_proc" / "renders"), "skeleton_json_path": "skeleton.json", "alt_key_path": str(source / "_proc" / "three_3" / "merged_keypoints.h5")}),
     ]
 
@@ -138,10 +140,35 @@ def test_process_directory_stage_flags(tmp_path, monkeypatch, flags, expected):
     assert calls == expected
 
 
-@pytest.mark.xfail(strict=True, reason="process_directory passes exist_ok=False when force is false, so existing output directories raise")
-def test_process_directory_force_false_allows_existing_output_dirs(tmp_path, monkeypatch):
+@pytest.mark.parametrize("stage", ["2d", "3d"])
+def test_process_directory_force_false_allows_existing_output_dirs(tmp_path, monkeypatch, stage):
     source = tmp_path / "session"
     _touch(source / "_proc" / "cam.avi")
-    (source / "_proc" / "_kpoints_v1_2d").mkdir(parents=True)
-    monkeypatch.setattr("depth_keys.experiment.trial.Trial", lambda **kwargs: type("T", (), {"predict_keypoints": lambda self, **k: None})())
-    proc.process_directory(str(source), "r", "c", "u", "i", "t", "s", [], compute_2d=True, compute_3d=False, render=False, force=False)
+    (source / "_proc" / f"_kpoints_v1_{stage}").mkdir(parents=True)
+    calls = []
+
+    class FakeTrial:
+        def __init__(self, **kwargs): pass
+        def predict_keypoints(self, **kwargs): calls.append("2d")
+        def compute_3d_keypoints(self, **kwargs): calls.append("3d")
+
+    monkeypatch.setattr("depth_keys.experiment.trial.Trial", FakeTrial)
+    proc.process_directory(
+        str(source), "r", "c", "u", "i", "t", "s", [],
+        compute_2d=stage == "2d", compute_3d=stage == "3d", render=False, force=False,
+    )
+    assert calls == [stage]
+
+
+@pytest.mark.parametrize("stage", ["2d", "3d"])
+def test_process_directory_existing_output_file_still_raises(tmp_path, monkeypatch, stage):
+    source = tmp_path / "session"
+    _touch(source / "_proc" / "cam.avi")
+    _touch(source / "_proc" / f"_kpoints_v1_{stage}")
+    monkeypatch.setattr("depth_keys.experiment.trial.Trial", lambda **kwargs: object())
+
+    with pytest.raises(FileExistsError):
+        proc.process_directory(
+            str(source), "r", "c", "u", "i", "t", "s", [],
+            compute_2d=stage == "2d", compute_3d=stage == "3d", render=False, force=False,
+        )

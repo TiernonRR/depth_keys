@@ -1,7 +1,4 @@
-"""
-viz.py
-Visualization functions for 3D trajectories and 2D overlays.
-"""
+"""Render 3D trajectories and camera-video keypoint overlays."""
 import os
 import numpy as np
 import h5py
@@ -16,29 +13,22 @@ def create_overlay_video(session_dir, version_num,
                          output_path,
                          keypoint_file=None,
                          **overlay_kwargs):
+    """Create an overlay MP4 for one camera's depth video.
+
+    Args:
+        session_dir: Session directory containing ``_proc`` videos and keypoints.
+        version_num: Version used to locate merged 3D keypoints by default.
+        reference_camera: Camera whose video receives the overlay.
+        intrinsics_file: Path to the camera intrinsics TOML file.
+        conda_env_name: Environment name forwarded to the video processor.
+        output_path: Destination directory for the MP4.
+        keypoint_file: Optional merged keypoint HDF5 file overriding the
+            version-based default.
+        **overlay_kwargs: Additional processor options, such as ``n_frames``,
+            ``batch_size``, ``raw``, ``render_save_name``, ``frame_start``,
+            ``frame_end``, and ``cam_by_conf``.
     """
-    Initializes a KeypointVideoProcessor and generates the 2D overlay video.
-    
-    Parameters:
-    -----------
-    session_dir : str
-        Path to the session directory.
-    version_num : str
-        The version number for the keypoints.
-    keypoints_2d : np.ndarray
-        The projected 2D keypoints (usually with depth as the 3rd channel) to overlay.
-    reference_camera : str, optional
-        The name of the camera to process.
-    intrinsics_file : str, optional
-        Path to the intrinsics TOML file.
-    keypoint_file : str, optional
-        Absolute or relative path to a specific merged_keypoints.h5 file.
-        If provided, this overrides the default version-based keypoint path.
-    **kwargs : 
-        Additional arguments passed to KeypointVideoProcessor 
-        (e.g., n_frames, batch_size, raw, save_name, frame_start, frame_end, cam_by_conf, output_path).
-    """
-    
+
 
     video_processor = KeypointVideoProcessor(
         session_dir=session_dir,
@@ -56,8 +46,20 @@ def create_overlay_video(session_dir, version_num,
 
 def render_3d_matplotlib(merged_keys, skeleton_edges, output_path, save_name, fps=100, 
                          burn_in=10, max_frames=None):
-    """
-    Renders the 3D keypoints to an MP4 using matplotlib.
+    """Render merged 3D keypoint trajectories to an MP4.
+
+    Negates the Z coordinate for plotting and derives padded axis limits from
+    the input. Renders frames from ``burn_in`` up to, but excluding,
+    ``max_frames`` or the array length.
+
+    Args:
+        merged_keys: Keypoint array shaped ``(frames, nodes, 3)``.
+        skeleton_edges: Pairs of node indices to connect in the render.
+        output_path: Directory created for the output video if needed.
+        save_name: Output filename stem; ``.mp4`` is appended.
+        fps: Frame rate of the output video.
+        burn_in: First frame index to render.
+        max_frames: Exclusive upper frame bound; defaults to all frames.
     """
     # Calculate limits with padding
     pad = 5
