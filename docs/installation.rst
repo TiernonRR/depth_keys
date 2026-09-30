@@ -6,10 +6,6 @@ Linux machine with an NVIDIA GPU for 2D inference. The repository's
 ``environment.yml`` provides Python 3.12 and FFmpeg. The package install adds
 SLEAP-NN, Markovids, and the other Python dependencies.
 
-On PACE, load Anaconda first (and again in each new compute-node shell)::
-
-   module load anaconda3/2023.03
-
 Clone the repository and create the environment::
 
    git clone https://github.com/TiernonRR/depth_keys.git
