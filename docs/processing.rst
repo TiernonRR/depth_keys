@@ -36,7 +36,7 @@ You can select all stages in one run on a GPU node::
 
    depth-keys compute-keypoints /path/to/session_001 --compute-2d --compute-3d --render
 
-For cable recordings, set ``DEPTHKEYS_CONFIG`` to your cable config and add
+For photometry recordings, set ``DEPTHKEYS_CONFIG`` to your cable config and add
 ``--cable`` to the command. Explicit CLI path options override the corresponding
 environment variables. Stage flags are required; without them the command
 does not process any stage.

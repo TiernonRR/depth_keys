@@ -1,9 +1,8 @@
 depth-keys
 ==========
 
-``depth-keys`` turns synchronized depth-camera recordings into 2D keypoints,
-registered 3D keypoints, and videos for checking the results. It uses SLEAP-NN
-models for tracking and camera calibration data for 3D registration.
+``depth-keys`` turns synchronized depth-camera recordings 3D keypoints. It leverages SLEAP-NN
+models for 2D tracking, then uses camera depth values to compute respective 3D predictions. Includes visualization suite for plotting 3D keypoints over time and overlaying keypoint predictions on input videos.
 
 Start with :doc:`installation`, then :doc:`configuration` and
 :doc:`processing`. If you process many sessions on a Slurm cluster, see
