@@ -1,3 +1,7 @@
+[![Documentation](https://app.readthedocs.org/projects/depth-keys/badge/?version=stable)](https://depth-keys.readthedocs.io/en/stable/)
+
+[![codecov](https://codecov.io/gh/TiernonRR/depth_keys/branch/main/graph/badge.svg)](https://app.codecov.io/gh/TiernonRR/depth_keys)
+
 # Install (GT PACE)
 
 SSH into a PACE login node:
