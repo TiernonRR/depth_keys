@@ -1,7 +1,7 @@
 [![CI](https://github.com/TiernonRR/depth_keys/actions/workflows/tests.yml/badge.svg)](https://github.com/TiernonRR/depth_keys/actions/workflows/tests.yml)
 [![Coverage](https://codecov.io/gh/TiernonRR/depth_keys/branch/main/graph/badge.svg)](https://app.codecov.io/gh/TiernonRR/depth_keys)
 [![Documentation](https://img.shields.io/badge/Documentation-depth--keys-lightgrey)](https://depth-keys.readthedocs.io/en/latest/)
-[![Downloads](https://api.pepy.tech/personalized-badge/depth-keys?period=total&units=international_system&left_color=grey&right_color=brightgreen&left_text=PyPI%20Downloads)](https://pepy.tech/projects/depth-keys)
+<!-- [![Downloads](https://api.pepy.tech/personalized-badge/depth-keys?period=total&units=international_system&left_color=grey&right_color=brightgreen&left_text=PyPI%20Downloads)](https://pepy.tech/projects/depth-keys) -->
 [![Stable version](https://img.shields.io/github/v/release/TiernonRR/depth_keys?label=stable)](https://github.com/TiernonRR/depth_keys/releases/)
 [![Latest version](https://img.shields.io/github/v/release/TiernonRR/depth_keys?include_prereleases&label=latest)](https://github.com/TiernonRR/depth_keys/releases/)
 
