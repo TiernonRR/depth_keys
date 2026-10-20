@@ -19,7 +19,7 @@ SSH into a PACE login node:
 
     ```bash
     git clone https://github.com/TiernonRR/depth_keys
-    cd depth_keysgit a
+    cd depth_keys
     ```
 
 3. Install the depth-keys conda environment, by navigating the cloned repository and running,
