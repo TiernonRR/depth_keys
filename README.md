@@ -15,12 +15,11 @@ SSH into a PACE login node:
     module load anaconda3/2023.03
     ```
 
-2. Next, clone this repository to a convenient directory on PACE and use the latest branch (it's advisable to have code in your project storage not home directory)
+2. Next, clone this repository to a convenient directory on PACE (it's advisable to have code in your project storage not home directory)
 
     ```bash
     git clone https://github.com/TiernonRR/depth_keys
-    cd depth_keys
-    git checkout cleanup-jm
+    cd depth_keysgit a
     ```
 
 3. Install the depth-keys conda environment, by navigating the cloned repository and running,
