@@ -4,10 +4,8 @@
 fps = 100
 reference_camera = "Lucid Vision Labs-HTP003S-001-224500508"
 
-# Toggle specific processing steps
-constrain_bones = true
-impute_pca = false
-regularize_temporal = true
+# Ordered processing steps; PCA imputation is disabled.
+proc_order = ["temporal", "bone", "bone", "final_smooth"]
 
 # ==========================================
 # KEYPOINT LISTS
@@ -78,7 +76,7 @@ xlim = [-300, 300]
 ylim = [-300, 300]
 zlim = [-10, 105]
 
-# Confidence mapping (keys must be strings in TOML)
+# Confidence mapping in nodes.toml order (keys must be strings in TOML)
 [index_conf_map]
 "0" = 0.40
 "1" = 0.40
@@ -89,33 +87,21 @@ zlim = [-10, 105]
 "6" = 0.35
 "7" = 0.4
 "8" = 0.4
-"9" = 0.80
+"9" = 0.4
 "10" = 0.4
 "11" = 0.4
 "12" = 0.4
-"13" = 0.4
 
 # ==========================================
-# POST PROCESSING PARAMETERS (CABLE VERSION)
+# Z Computation PARAMETERS (CABLE VERSION)
 # ==========================================
-[post_processing]
-# Note: Snout is explicitly excluded here for cable
-incl_kpoints_post_processing = [
-    "tail_tip", "tail_middle", "tail_base", "back_bottom", 
-    "back_middle_lower", "back_middle_upper", "back_top", 
-    "left_hip", "right_hip", "left_shoulder", "right_shoulder", 
-    "left_ear", "right_ear"
-]
+[resolve_z]
 
-[post_processing.depth_processing]
-bilateral_kwargs = { d = 9, sigmaColor = 15, sigmaSpace = 3 }
-replace_height_spikes_kwargs = false
-
-[post_processing.depth_processing_cable]
+[resolve_z.depth_processing]
 bilateral_kwargs = { d = 11, sigmaColor = 30, sigmaSpace = 5 }
 replace_height_spikes_kwargs = { threshold = 100, ksize = 11 }
 
-[post_processing.depth_patch_parameters]
+[resolve_z.depth_patch_parameters]
 tail_tip = { patch_radius = 7, agg_func = 95 }
 tail_middle = { patch_radius = 8, agg_func = 75 }
 tail_base = { patch_radius = 8, agg_func = 75 }
@@ -131,6 +117,18 @@ right_hip = { patch_radius = 10, agg_func = 75 }
 left_shoulder = { patch_radius = 8, agg_func = 75 }
 right_shoulder = { patch_radius = 10, agg_func = 75 }
 
+# ==========================================
+# POST PROCESSING PARAMETERS (CABLE VERSION)
+# ==========================================
+[post_processing]
+# Note: Snout is explicitly excluded here for cable
+incl_kpoints_post_processing = [
+    "tail_tip", "tail_middle", "tail_base", "back_bottom",
+    "back_middle_lower", "back_middle_upper", "back_top",
+    "left_hip", "right_hip", "left_shoulder", "right_shoulder",
+    "left_ear", "right_ear"
+]
+
 [post_processing.temporal_regularization]
 lambda_jerk = 3e-8       # Higher jerk penalty for cable
 lambda_snap = 0
@@ -144,7 +142,7 @@ iterations = 10
 violation_threshold = 1.5
 
 [post_processing.pca]
-n_components = 5         # Fewer components for cable
+n_components = 5
 n_iterations = 30
 
 [post_processing.align]
@@ -166,3 +164,9 @@ medfilt_kernel = 5
 [post_processing.post_align_sgolay]
 window_length = 7
 polyorder = 3
+
+# Used only if "interpolate" is included in proc_order.
+[post_processing.interpolation]
+length_threshold = 10
+method = "slinear"
+window = 250

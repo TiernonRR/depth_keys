@@ -10,7 +10,5 @@
     ["back_top", "left_shoulder"],
     ["back_top", "right_shoulder"],
     ["back_bottom", "left_hip"],
-    ["back_bottom", "right_hip"],
-    ["snout", "left_ear"],
-    ["snout", "right_ear"]
+    ["back_bottom", "right_hip"]
 ]

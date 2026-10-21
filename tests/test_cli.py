@@ -33,6 +33,37 @@ def test_cli_rejects_unknown_command_and_missing_proc_dir():
     assert "Missing argument" in missing.output
 
 
+@pytest.mark.parametrize("command", ["compute-keypoints", "create-kpoint-batch"])
+def test_processing_commands_have_no_cable_option(command):
+    runner = CliRunner()
+    help_result = runner.invoke(cli_module.cli, [command, "--help"])
+    assert help_result.exit_code == 0
+    assert "--cable" not in help_result.output
+    result = runner.invoke(cli_module.cli, [command, "--cable"], standalone_mode=False)
+    assert result.exit_code != 0
+    assert isinstance(result.exception, click.NoSuchOption)
+    assert result.exception.option_name == "--cable"
+
+
+def test_compute_keypoints_uses_cable_files_without_mode_flag(tmp_path, monkeypatch):
+    cable_dir = Path(__file__).parents[1] / "example_configs" / "default_cable"
+    calls = []
+    monkeypatch.setattr("depth_keys.proc.process_directory", lambda **kwargs: calls.append(kwargs))
+    result = CliRunner().invoke(cli_module.cli, [
+        "compute-keypoints", str(tmp_path),
+        "--config-path", str(cable_dir / "config_cable.toml"),
+        "--node-path", str(cable_dir / "nodes.toml"),
+        "--skeleton-path", str(cable_dir / "skeleton.json"),
+        "--compute-3d",
+    ])
+    assert result.exit_code == 0, result.output
+    assert calls[0]["registration_config_path"] == str(cable_dir / "config_cable.toml")
+    assert calls[0]["skeleton_path"] == str(cable_dir / "skeleton.json")
+    assert len(calls[0]["node_names"]) == 13
+    assert "snout" not in calls[0]["node_names"]
+    assert "cable" not in calls[0]
+
+
 def test_compute_keypoints_loads_nodes_and_forwards_all_options(tmp_path, monkeypatch):
     nodes = tmp_path / "nodes.toml"
     nodes.write_text('nodes = ["snout", "tail_tip"]\n')
@@ -44,7 +75,7 @@ def test_compute_keypoints_loads_nodes_and_forwards_all_options(tmp_path, monkey
         "--config-path", "config.toml", "--ci-model-path", "ci",
         "--centroid-model-path", "centroid", "--intrinsics-path", "intrinsics.toml",
         "--transform-path", "transforms.toml", "--skeleton-path", "skeleton.json",
-        "--node-path", str(nodes), "--reference-camera", "cam", "--cable",
+        "--node-path", str(nodes), "--reference-camera", "cam",
         "--compute-2d", "--compute-3d", "--render", "--force",
     ])
     assert result.exit_code == 0, result.output
@@ -52,7 +83,7 @@ def test_compute_keypoints_loads_nodes_and_forwards_all_options(tmp_path, monkey
         "source_directory": str(tmp_path / "proc"), "registration_config_path": "config.toml",
         "ci_model_path": "ci", "centroid_model_path": "centroid", "intrinsics_path": "intrinsics.toml",
         "transforms_path": "transforms.toml", "skeleton_path": "skeleton.json",
-        "reference_camera": "cam", "node_names": ["snout", "tail_tip"], "cable": True,
+        "reference_camera": "cam", "node_names": ["snout", "tail_tip"],
         "compute_2d": True, "compute_3d": True, "render": True, "force": True, "version_num": 1,
     }]
 

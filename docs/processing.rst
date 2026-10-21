@@ -36,10 +36,20 @@ You can select all stages in one run on a GPU node::
 
    depth-keys compute-keypoints /path/to/session_001 --compute-2d --compute-3d --render
 
-For photometry recordings, set ``DEPTHKEYS_CONFIG`` to your cable config and add
-``--cable`` to the command. Explicit CLI path options override the corresponding
-environment variables. Stage flags are required; without them the command
-does not process any stage.
+If your data includes a cable, for example in experiments with fiber
+photometry, use ``example_configs/default_cable/config_cable.toml`` and its
+accompanying ``nodes.toml`` and ``skeleton.json``. We suggest skipping
+``snout`` in your predictions. For example, set the paths before running the
+same processing commands::
+
+   export DEPTHKEYS_CONFIG="/path/to/example_configs/default_cable/config_cable.toml"
+   export DEPTHKEYS_NODES="/path/to/example_configs/default_cable/nodes.toml"
+   export DEPTHKEYS_SKELETON="/path/to/example_configs/default_cable/skeleton.json"
+   export DEPTHKEYS_TRANSFORM="/path/to/example_configs/default_cable/avg_transforms.toml"
+
+The config supplies the recording's depth filters and post-processing stages.
+Explicit CLI path options override the corresponding environment variables.
+Stage flags are required; without them the command does not process any stage.
 
 Outputs are written beside the AVIs::
 

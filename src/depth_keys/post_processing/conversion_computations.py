@@ -24,23 +24,16 @@ def _to_plain_types(obj):
 
 
 def _get_resolve_z_config(config, config_path):
-    """Return depth settings from ``resolve_z`` or the legacy section.
+    """Return the depth settings in the ``resolve_z`` table.
 
     Raises:
-        KeyError: If neither configuration section is a table.
+        KeyError: If the required configuration table is missing.
     """
     resolve_z_cfg = config.get("resolve_z")
     if isinstance(resolve_z_cfg, dict):
         return resolve_z_cfg
 
-    post_cfg = config.get("post_processing")
-    if isinstance(post_cfg, dict):
-        return post_cfg
-
-    raise KeyError(
-        "Missing [resolve_z] (or backward-compatible [post_processing]) section "
-        f"in config: {config_path}"
-    )
+    raise KeyError(f"Missing [resolve_z] table in config: {config_path}")
 
 
 def _load_depth_params(config_path):
@@ -56,7 +49,6 @@ def _load_depth_params(config_path):
     if depth_params is None:
         raise KeyError(
             "Missing [resolve_z.depth_patch_parameters] "
-            "(or backward-compatible [post_processing.depth_patch_parameters]) "
             f"in config: {config_path}"
         )
     if not isinstance(depth_params, dict):
@@ -66,12 +58,11 @@ def _load_depth_params(config_path):
     return _to_plain_types(depth_params)
 
 
-def _load_depth_processing_overrides(config_path, cable):
-    """Load bilateral and optional spike-filter settings for a video type.
+def _load_depth_processing_overrides(config_path):
+    """Load bilateral and optional spike-filter settings from the config.
 
     Args:
         config_path: Path to the depth-processing TOML configuration.
-        cable: Whether to select the cable-specific processing section.
 
     Returns:
         The bilateral-filter arguments and optional spike-filter arguments.
@@ -81,18 +72,16 @@ def _load_depth_processing_overrides(config_path, cable):
     """
     config = toml.load(config_path)
     resolve_z_cfg = _get_resolve_z_config(config, config_path)
-    variant_key = "depth_processing_cable" if cable else "depth_processing"
-    depth_cfg = resolve_z_cfg.get(variant_key)
+    depth_cfg = resolve_z_cfg.get("depth_processing")
     if depth_cfg is None:
         raise KeyError(
-            f"Missing [resolve_z.{variant_key}] "
-            f"(or backward-compatible [post_processing.{variant_key}]) in config: {config_path}"
+            f"Missing [resolve_z.depth_processing] table in config: {config_path}"
         )
 
     bilateral_kwargs = depth_cfg.get("bilateral_kwargs")
     if bilateral_kwargs is None:
         raise KeyError(
-            f"Missing [resolve_z.{variant_key}.bilateral_kwargs] in config: {config_path}"
+            f"Missing [resolve_z.depth_processing.bilateral_kwargs] in config: {config_path}"
         )
     bilateral_kwargs = _to_plain_types(bilateral_kwargs)
 
@@ -339,7 +328,6 @@ def convert_2d_to_3d(
     kpoint_root_dir,
     avis,
     version_num,
-    cable,
     node_names,
     config_path,
     conda_env_name=None,
@@ -355,7 +343,6 @@ def convert_2d_to_3d(
         kpoint_root_dir: Directory containing camera-named ``.slp`` files.
         avis: Paths to depth videos, one per camera.
         version_num: Version included in 2D and 3D output directory names.
-        cable: Whether to use cable-specific depth filtering settings.
         node_names: Ordered names defining output point positions.
         config_path: TOML file with depth patch and filtering settings.
         conda_env_name: Optional environment activated by the video reader.
@@ -409,7 +396,7 @@ def convert_2d_to_3d(
             new_arr = joblib.load(save_file)
 
     bilateral_kwargs, replace_height_spikes_kwargs = _load_depth_processing_overrides(
-        config_path, cable
+        config_path
     )
 
     delays = []

@@ -119,12 +119,12 @@ def test_compute_3d_keypoints_forwards_conversion_and_registration(tmp_path, mon
     trial = Trial(
         "session", ["cam.avi"], base_dir=str(tmp_path), version_num=3,
         keypoints2d_output_path="2d", keypoints3d_output_path="3d",
-        node_names=["nose"], intrinsics_file=str(intrinsics), cable=True,
+        node_names=["nose"], intrinsics_file=str(intrinsics),
         conda_env_name="env", transforms_path="transforms", bundle_adjust=True,
         verbose=False,
     )
     trial.compute_3d_keypoints("registration.toml", force=force)
-    assert convert_call["args"] == ("2d", ["cam.avi"], 3, True, ["nose"], "registration.toml")
+    assert convert_call["args"] == ("2d", ["cam.avi"], 3, ["nose"], "registration.toml")
     assert convert_call["kwargs"] == {"conda_env_name": "env", "force": force}
     assert register_call["args"] == ("registration.toml", str(tmp_path / "session"))
     assert register_call["kwargs"] == {

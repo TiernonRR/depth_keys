@@ -32,7 +32,6 @@ class Trial:
         keypoints3d_output_path: str = None,
         reference_camera: str = None,
         intrinsics_file: str = None,
-        cable: bool = False,
         conda_env_name: str = None,
         transforms_path: str = None,
         verbose: bool = True,
@@ -58,7 +57,6 @@ class Trial:
                 ``_proc`` directory in subdir ``_kpoints_v{self.version_num}_3d``.
             reference_camera: Stored reference camera identifier.
             intrinsics_file: Path to the camera intrinsics TOML file.
-            cable: Whether to use cable-specific depth processing settings.
             conda_env_name: Optional environment name passed to conversion and
                 overlay rendering.
             transforms_path: Optional transforms passed to registration.
@@ -87,7 +85,6 @@ class Trial:
 
         self.reference_camera = reference_camera
         self.intrinsics_file = intrinsics_file
-        self.cable = cable
         self.conda_env_name = conda_env_name
         self.node_names = [] if node_names is None else node_names
 
@@ -168,7 +165,6 @@ class Trial:
             self.keypoints2d_output_path,
             self.video_paths,
             self.version_num,
-            self.cable,
             self.node_names,
             registration_config_path,
             conda_env_name=self.conda_env_name,

@@ -85,7 +85,7 @@ def test_process_directory_discovers_sorted_videos_and_runs_selected_stages(tmp_
     monkeypatch.setattr("depth_keys.experiment.trial.Trial", FakeTrial)
     proc.process_directory(
         str(source), "reg.toml", "ci", "centroid", "intr.toml", "trans.toml", "skeleton.json", ["nose"],
-        version_num=3, reference_camera="cam", cable=True, compute_2d=True, compute_3d=True, render=True,
+        version_num=3, reference_camera="cam", compute_2d=True, compute_3d=True, render=True,
         force=force, output_dirs={"kpoints_2d": "two_{version}", "kpoints_3d": "three_{version}"},
     )
     init = calls[0][1]

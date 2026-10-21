@@ -59,7 +59,6 @@ def main():
     project = args.project
     version = args.version
     keyp_output_dir = args.keyp_output_dir
-    cable = False # not needed for viz
 
     videos = glob(os.path.join(base_dir, project, session, "_proc", "*.avi")) # TODO if use camera arg
 
@@ -78,7 +77,6 @@ def main():
                          intrinsics_file=intrinsics_file,
                          reference_camera=reference_camera,
                          node_names=node_names,
-                         cable=cable,
                          conda_env_name="sleap-nn-env")
     
     overlay_kwargs = {

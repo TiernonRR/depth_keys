@@ -48,7 +48,6 @@ def kpoint_params(func):
     @click.option("--skeleton-path", type=click.Path(), help="Path to sleap json skeleton definition", envvar="DEPTHKEYS_SKELETON", show_envvar=True, )
     @click.option("--node-path", type=click.Path(), help="Path to node names", envvar="DEPTHKEYS_NODES", show_envvar=True, )
     @click.option("--reference-camera", type=str, default="Lucid Vision Labs-HTP003S-001-224500508", envvar="DEPTHKEYS_REFERENCE_CAMERA", show_envvar=True, )
-    @click.option("--cable", is_flag=True, help="Set flag if data contains a cable")
     @click.option("--compute-2d", is_flag=True, help="Process 2d keypoints")
     @click.option("--compute-3d", is_flag=True, help="Process 3d keypoints")
     @click.option("--render", is_flag=True, help="Render keypoint data")
@@ -86,7 +85,6 @@ def create_kpoint_batch(chk_dir,
                         skeleton_path,
                         node_path,
                         reference_camera,
-                        cable,
                         compute_2d,
                         compute_3d,
                         render,
@@ -119,7 +117,6 @@ def create_kpoint_batch(chk_dir,
         skeleton_path: Skeleton JSON path for rendering.
         node_path: TOML file containing ordered node names.
         reference_camera: Reference camera identifier.
-        cable: Whether sessions contain a cable.
         compute_2d: Whether to request 2D inference.
         compute_3d: Whether to request 3D conversion.
         render: Whether to request visualizations.
@@ -151,8 +148,6 @@ def create_kpoint_batch(chk_dir,
         "--reference-camera": reference_camera,
         "--intrinsics-path": intrinsics_path
     }
-    if cable:
-        param_dct["--cable"] = None
     if compute_2d:
         param_dct["--compute-2d"] = None
     if compute_3d:
@@ -273,7 +268,6 @@ def compute_keypoints(
     skeleton_path,
     node_path,
     reference_camera,
-    cable,
     compute_2d,
     compute_3d,
     render,
@@ -294,7 +288,6 @@ def compute_keypoints(
         skeleton_path: Skeleton JSON path for rendering.
         node_path: TOML file whose ``nodes`` key lists keypoint names.
         reference_camera: Reference camera identifier.
-        cable: Whether the session contains a cable.
         compute_2d: Whether to run SLEAP inference.
         compute_3d: Whether to convert and register keypoints.
         render: Whether to render keypoint videos.
@@ -325,7 +318,6 @@ def compute_keypoints(
         skeleton_path=skeleton_path,
         reference_camera=reference_camera,
         node_names=node_names,
-        cable=cable,
         compute_2d=compute_2d,
         compute_3d=compute_3d,
         render=render,

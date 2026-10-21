@@ -50,12 +50,6 @@ def parse_arguments():
     parser.add_argument('--output_dir', required=False, default=None)
     # parser.add_argument('--camera', required=True, help="Output version identifier")
     
-    # Mutually exclusive cable flags
-    cable_group = parser.add_mutually_exclusive_group()
-    cable_group.add_argument("--cable", dest="cable", action="store_true", help="Cable Present")
-    cable_group.add_argument("--no-cable", dest="cable", action="store_false", help="Cable Not Present")
-    parser.set_defaults(cable=True)
-    
     return parser.parse_args()
 
 def main():
@@ -66,7 +60,6 @@ def main():
     session = args.session
     project = args.project
     version = args.version
-    cable   = args.cable
     output_dir = args.output_dir
 
     videos = glob(os.path.join(base_dir, project, session, "_proc", "*.avi"))
@@ -88,7 +81,6 @@ def main():
                          reference_camera=reference_camera,
                          node_names=node_names,
                          keypoints_output_path=keypoint_output_path, 
-                         cable=cable,
                          conda_env_name="sleap-nn-env")
 
     _trial.compute_3d_keypoints(post_proc_config_path)
