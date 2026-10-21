@@ -39,9 +39,10 @@ def test_processing_commands_have_no_cable_option(command):
     help_result = runner.invoke(cli_module.cli, [command, "--help"])
     assert help_result.exit_code == 0
     assert "--cable" not in help_result.output
-    result = runner.invoke(cli_module.cli, [command, "--cable"])
+    result = runner.invoke(cli_module.cli, [command, "--cable"], standalone_mode=False)
     assert result.exit_code != 0
-    assert "No such option: --cable" in result.output
+    assert isinstance(result.exception, click.NoSuchOption)
+    assert result.exception.option_name == "--cable"
 
 
 def test_compute_keypoints_uses_cable_files_without_mode_flag(tmp_path, monkeypatch):
