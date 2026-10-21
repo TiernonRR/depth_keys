@@ -35,23 +35,17 @@ except ModuleNotFoundError:
 from depth_keys.post_processing import conversion_computations as cc
 
 
-def write_config(path: Path, *, legacy: bool = False, include_cable: bool = True,
-                 include_bilateral: bool = True, depth_params=None) -> Path:
+def write_config(path: Path, *, depth_params=None, bilateral_kwargs=None,
+                 replace_height_spikes_kwargs=False) -> Path:
     """Write a tiny, real TOML config matching the production contract."""
-    section = "post_processing" if legacy else "resolve_z"
-    cfg = {section: {}}
+    cfg = {"resolve_z": {"depth_processing": {
+        "bilateral_kwargs": bilateral_kwargs if bilateral_kwargs is not None else {
+            "d": 1, "sigmaColor": 2, "sigmaSpace": 3,
+        },
+        "replace_height_spikes_kwargs": replace_height_spikes_kwargs,
+    }}}
     if depth_params is not None:
-        cfg[section]["depth_patch_parameters"] = depth_params
-    if include_bilateral:
-        cfg[section]["depth_processing"] = {
-            "bilateral_kwargs": {"d": 1, "sigmaColor": 2, "sigmaSpace": 3},
-            "replace_height_spikes_kwargs": False,
-        }
-        if include_cable:
-            cfg[section]["depth_processing_cable"] = {
-                "bilateral_kwargs": {"d": 5, "sigmaColor": 6, "sigmaSpace": 7},
-                "replace_height_spikes_kwargs": {"threshold": 9, "ksize": 7},
-            }
+        cfg["resolve_z"]["depth_patch_parameters"] = depth_params
     with path.open("w") as stream:
         toml.dump(cfg, stream)
     return path
@@ -106,29 +100,23 @@ def test_to_plain_types_recurses_without_mutating_input():
     assert result["a"] is not value["a"]
 
 
-def test_get_resolve_z_config_prefers_current_section():
-    current = {"depth_patch_parameters": {"a": 1}}
+def test_get_resolve_z_config_separates_depth_from_post_processing():
+    depth = {"depth_patch_parameters": {"a": 1}}
     assert cc._get_resolve_z_config(
-        {"resolve_z": current, "post_processing": {"old": True}}, "config.toml"
-    ) is current
+        {"resolve_z": depth, "post_processing": {"interpolation": {}}}, "config.toml"
+    ) is depth
 
 
-def test_get_resolve_z_config_falls_back_to_legacy_section():
-    legacy = {"depth_patch_parameters": {"a": 1}}
-    assert cc._get_resolve_z_config({"post_processing": legacy}, "config.toml") is legacy
+@pytest.mark.parametrize("config", [{}, {"post_processing": {}}, {"resolve_z": False}])
+def test_get_resolve_z_config_requires_depth_table(config):
+    with pytest.raises(KeyError, match=r"Missing \[resolve_z\]"):
+        cc._get_resolve_z_config(config, "config.toml")
 
 
-def test_get_resolve_z_config_requires_a_section():
-    with pytest.raises(KeyError, match="Missing \[resolve_z\]"):
-        cc._get_resolve_z_config({}, "config.toml")
-
-
-def test_load_depth_params_current_and_legacy(tmp_path):
+def test_load_depth_params(tmp_path):
     expected = {"nose": {"patch_radius": 2, "agg_func": 50}}
-    current_path = write_config(tmp_path / "current.toml", depth_params=expected)
-    legacy_path = write_config(tmp_path / "legacy.toml", legacy=True, depth_params=expected)
-    assert cc._load_depth_params(current_path) == expected
-    assert cc._load_depth_params(legacy_path) == expected
+    path = write_config(tmp_path / "config.toml", depth_params=expected)
+    assert cc._load_depth_params(path) == expected
 
 
 def test_load_depth_params_missing_table(tmp_path):
@@ -144,14 +132,14 @@ def test_load_depth_params_rejects_non_table(tmp_path):
         cc._load_depth_params(path)
 
 
-def test_load_depth_processing_overrides_selects_cable_and_non_cable(tmp_path):
-    path = write_config(tmp_path / "config.toml", depth_params={})
-    bilateral, spikes = cc._load_depth_processing_overrides(path, cable=False)
-    assert bilateral == {"d": 1, "sigmaColor": 2, "sigmaSpace": 3}
-    assert spikes is None
-    bilateral, spikes = cc._load_depth_processing_overrides(path, cable=True)
-    assert bilateral == {"d": 5, "sigmaColor": 6, "sigmaSpace": 7}
-    assert spikes == {"threshold": 9, "ksize": 7}
+@pytest.mark.parametrize("bilateral, spikes", [
+    ({"d": 1, "sigmaColor": 2, "sigmaSpace": 3}, False),
+    ({"d": 5, "sigmaColor": 6, "sigmaSpace": 7}, {"threshold": 9, "ksize": 7}),
+])
+def test_load_depth_processing_overrides_uses_config_values(tmp_path, bilateral, spikes):
+    path = write_config(tmp_path / "recording.toml", bilateral_kwargs=bilateral,
+                        replace_height_spikes_kwargs=spikes)
+    assert cc._load_depth_processing_overrides(path) == (bilateral, spikes or None)
 
 
 @pytest.mark.parametrize("value", [False, {}, None])
@@ -160,19 +148,19 @@ def test_load_depth_processing_overrides_false_spike_setting_is_none(tmp_path, v
     dump_toml({"resolve_z": {"depth_processing": {
         "bilateral_kwargs": {"d": 1}, "replace_height_spikes_kwargs": value,
     }}}, path)
-    assert cc._load_depth_processing_overrides(path, cable=False) == ({"d": 1}, None)
+    assert cc._load_depth_processing_overrides(path) == ({"d": 1}, None)
 
 
-def test_load_depth_processing_overrides_requires_variant_and_bilateral(tmp_path):
-    no_variant = tmp_path / "no_variant.toml"
-    dump_toml({"resolve_z": {}}, no_variant)
-    with pytest.raises(KeyError, match="depth_processing_cable"):
-        cc._load_depth_processing_overrides(no_variant, cable=True)
+def test_load_depth_processing_overrides_requires_processing_and_bilateral(tmp_path):
+    no_processing = tmp_path / "no_processing.toml"
+    dump_toml({"resolve_z": {}}, no_processing)
+    with pytest.raises(KeyError, match="depth_processing"):
+        cc._load_depth_processing_overrides(no_processing)
 
     no_bilateral = tmp_path / "no_bilateral.toml"
     dump_toml({"resolve_z": {"depth_processing": {}}}, no_bilateral)
     with pytest.raises(KeyError, match="bilateral_kwargs"):
-        cc._load_depth_processing_overrides(no_bilateral, cable=False)
+        cc._load_depth_processing_overrides(no_bilateral)
 
 
 @pytest.mark.parametrize(
@@ -424,7 +412,9 @@ def test_get_3d_kpoints_uses_shared_minimum_for_mismatched_frame_counts(tmp_path
 
 def test_convert_2d_to_3d_creates_reordered_and_empty_sleap_arrays_and_uses_cache(tmp_path, monkeypatch):
     node_names = ["snout", "tail_tip"]
-    config = write_config(tmp_path / "config.toml", depth_params={
+    config = write_config(tmp_path / "config.toml", bilateral_kwargs={
+        "d": 5, "sigmaColor": 6, "sigmaSpace": 7,
+    }, replace_height_spikes_kwargs={"threshold": 9, "ksize": 7}, depth_params={
         "snout": {"patch_radius": 0, "agg_func": 50}, "tail_tip": {"patch_radius": 1, "agg_func": 75},
     })
     root = tmp_path / "sleap"
@@ -469,7 +459,7 @@ def test_convert_2d_to_3d_creates_reordered_and_empty_sleap_arrays_and_uses_cach
     monkeypatch.setattr(cc, "tqdm", lambda values: values)
 
     result = cc.convert_2d_to_3d(
-        str(root), [str(avi_a), str(avi_b)], version_num=2, cable=True,
+        str(root), [str(avi_a), str(avi_b)], version_num=2,
         node_names=node_names, config_path=str(config), conda_env_name="depth-env",
     )
 
@@ -514,10 +504,57 @@ def test_convert_2d_to_3d_force_rebuilds_cached_2d_and_forwards_force(tmp_path, 
     monkeypatch.setattr(cc, "tqdm", lambda values: values)
 
     cc.convert_2d_to_3d(
-        str(root), [str(avi)], version_num=2, cable=False,
+        str(root), [str(avi)], version_num=2,
         node_names=["snout"], config_path=str(config), force=True,
     )
 
     assert_allclose(joblib.load(cache_dir / "cam.pkl.gz"), [[[1, 2, .75]]])
     assert toml.load(cache_dir / "cam.toml")["node_names"] == ["snout"]
     assert delayed_calls[0]["force"] is True
+
+
+@pytest.mark.parametrize("directory, filename, expected_bilateral, expected_spikes", [
+    ("default", "config.toml", {"d": 9, "sigmaColor": 15, "sigmaSpace": 3}, None),
+    ("default_cable", "config_cable.toml", {"d": 11, "sigmaColor": 30, "sigmaSpace": 5},
+     {"threshold": 100, "ksize": 11}),
+])
+def test_example_config_drives_depth_conversion_without_mode_flag(
+    tmp_path, monkeypatch, directory, filename, expected_bilateral, expected_spikes
+):
+    example_dir = Path(__file__).parents[1] / "example_configs" / directory
+    # The filename carries no recording-type information; settings select the filters.
+    config = dump_toml(toml.load(example_dir / filename), tmp_path / "settings.toml")
+    nodes = toml.load(example_dir / "nodes.toml")["nodes"]
+    avi = tmp_path / "cam.avi"
+    avi.touch()
+    kpoints = np.zeros((2, len(nodes), 3), dtype=np.float32)
+    kpoints[..., 2] = 1
+    cache, _ = write_2d_artifacts(tmp_path, "cam", kpoints, nodes)
+    reader = FakeReader(np.full((2, 4, 4), 100, dtype=np.float32))
+    bilateral_filter = Mock(side_effect=lambda frame, **kwargs: frame)
+    spike_filter = Mock(side_effect=lambda frame, **kwargs: frame)
+    monkeypatch.setattr(cc.vid.io, "AutoReader", lambda *a, **kw: reader)
+    monkeypatch.setattr(cc.vid.util, "fill_holes", lambda frame: frame, raising=False)
+    monkeypatch.setattr(cc.cv2, "bilateralFilter", bilateral_filter)
+    monkeypatch.setattr(cc, "replace_height_spikes", spike_filter)
+    monkeypatch.setattr(cc, "tqdm", lambda values: values)
+
+    def run_jobs(jobs):
+        return [func(*args, **kwargs) for func, args, kwargs in jobs]
+
+    monkeypatch.setattr(cc.joblib, "Parallel", lambda **kwargs: run_jobs)
+    cc.convert_2d_to_3d(str(cache.parent), [str(avi)], 0, nodes, str(config))
+
+    assert bilateral_filter.call_count == 2
+    assert all(call.kwargs == expected_bilateral for call in bilateral_filter.call_args_list)
+    if expected_spikes is None:
+        spike_filter.assert_not_called()
+    else:
+        assert spike_filter.call_count == 2
+        assert all(call.kwargs == expected_spikes for call in spike_filter.call_args_list)
+    output_dir = tmp_path / "_kpoints_v0_3d"
+    output = joblib.load(output_dir / "cam.pkl.gz")
+    assert output.shape == (2, len(nodes), 4)
+    assert_allclose(output[..., 2], 100)
+    assert toml.load(output_dir / "cam.toml")["node_names"] == nodes
+    assert reader.closed

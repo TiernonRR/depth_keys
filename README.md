@@ -118,3 +118,11 @@ SSH into a PACE login node:
     ```
     depth-keys compute-keypoints --compute-2d --compute-3d --render DIR_WITH_AVI_FILE
     ```
+
+For data that includes a cable, such as fiber photometry recordings, use
+`example_configs/default_cable/config_cable.toml` with the `nodes.toml`,
+`skeleton.json`, and `avg_transforms.toml` in the same directory. Set
+`DEPTHKEYS_CONFIG`, `DEPTHKEYS_NODES`, `DEPTHKEYS_SKELETON`, and
+`DEPTHKEYS_TRANSFORM` to these files. The config supplies the depth filters and
+post-processing stages. We suggest skipping `snout` in your predictions; the
+cable nodes and skeleton files omit it.

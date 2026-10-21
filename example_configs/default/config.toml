@@ -103,10 +103,6 @@ zlim = [-10, 105]
 bilateral_kwargs = { d = 9, sigmaColor = 15, sigmaSpace = 3 }
 replace_height_spikes_kwargs = false
 
-[resolve_z.depth_processing_cable]
-bilateral_kwargs = { d = 11, sigmaColor = 30, sigmaSpace = 5 }
-replace_height_spikes_kwargs = { threshold = 100, ksize = 11 }
-
 [resolve_z.depth_patch_parameters]
 tail_tip = { patch_radius = 7, agg_func = 95 }
 tail_middle = { patch_radius = 8, agg_func = 75 }

@@ -45,12 +45,6 @@ def parse_arguments():
     parser.add_argument('--version', required=True, help="Output version identifier")
     parser.add_argument('--camera', required=True, help="Output version identifier")
     
-    # Mutually exclusive cable flags
-    cable_group = parser.add_mutually_exclusive_group()
-    cable_group.add_argument("--cable", dest="cable", action="store_true", help="Cable Present")
-    cable_group.add_argument("--no-cable", dest="cable", action="store_false", help="Cable Not Present")
-    parser.set_defaults(cable=True)
-    
     return parser.parse_args()
 
 def main():
@@ -63,7 +57,6 @@ def main():
     project = args.project
     version = args.version
     camera = args.camera
-    cable  = args.cable
 
     videos = glob(os.path.join(video_base_dir, project, session, f"{camera}.avi"))
     print(videos)
@@ -77,8 +70,7 @@ def main():
                          base_dir=os.path.join(base_dir, project),
                          intrinsics_file=intrinsics_file,
                          reference_camera=reference_camera,
-                         node_names=node_names,
-                         cable=cable)
+                         node_names=node_names)
 
     print("predicting keypoints...")
     _trial.predict_keypoints(ci_model_path=ci_model_path, 

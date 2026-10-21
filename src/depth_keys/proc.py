@@ -68,7 +68,6 @@ def process_directory(
     glob_pattern="_proc/*.avi",
     version_num=1,
     reference_camera="",
-    cable=False,
     compute_2d=True,
     compute_3d=True,
     render=True,
@@ -92,7 +91,6 @@ def process_directory(
         glob_pattern: Video path pattern relative to ``source_directory``.
         version_num: Version embedded in keypoint output directory names.
         reference_camera: Reference camera identifier stored on the trial.
-        cable: Whether to use cable-specific depth settings.
         compute_2d: Whether to run SLEAP inference.
         compute_3d: Whether to convert and register keypoints.
         render: Whether to create both visualization videos.
@@ -124,7 +122,6 @@ def process_directory(
         keypoints3d_output_path=keypoints3d_output_path,
         reference_camera=reference_camera,
         intrinsics_file=intrinsics_path,
-        cable=cable,
         conda_env_name=None,
         transforms_path=transforms_path,
         # registration_config_path=registration_config_path,
