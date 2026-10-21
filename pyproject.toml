@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "depth-keys" 
 version = "0.1.0"
 description = "Depth rig experiment processing pipeline"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.14"
 
 # The Core Dependencies
 dependencies = [
@@ -16,7 +16,6 @@ dependencies = [
     "toml",
     "click",
     
-    #"sleap-io==0.5.7", # installed with sleap-nn
     "sleap-nn==0.3.4",
     "markolab-cli @ git+https://github.com/markolab/markolab-cli.git",
     # "markovids @ git+https://github.com/triesenmy3/markovids.git" # incorrect
